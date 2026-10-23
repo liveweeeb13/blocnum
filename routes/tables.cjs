@@ -98,7 +98,7 @@ router.post('/', requireAuth, requireAdmin, (req, res) => {
       name: colName,
       label: c.label || colName,
       type: ['int', 'number', 'date', 'boolean', 'select'].includes(c.type) ? c.type : 'text',
-      options: Array.isArray(c.options) ? c.options : [],
+      options: (c.options && typeof c.options === 'object') ? c.options : [],
       required: c.required ? 1 : 0
     };
   }).filter(c => !!c.name && c.name !== 'id' && c.name !== 'created_at' && c.name !== 'updated_at');
@@ -113,12 +113,13 @@ router.post('/', requireAuth, requireAdmin, (req, res) => {
       // 2. Insert column metadata
       const insertCol = db.prepare('INSERT INTO _system_columns (table_id, name, label, type, options, required) VALUES (?, ?, ?, ?, ?, ?)');
       for (const col of preparedColumns) {
+        const hasOpts = col.options && (Array.isArray(col.options) ? col.options.length > 0 : Object.keys(col.options).length > 0);
         insertCol.run(
           tableId,
           col.name,
           col.label,
           col.type,
-          col.options.length ? JSON.stringify(col.options) : null,
+          hasOpts ? JSON.stringify(col.options) : null,
           col.required
         );
       }
@@ -219,14 +220,15 @@ router.post('/:id/columns', requireAuth, requireAdmin, (req, res) => {
   }
 
   const colType = ['int', 'number', 'date', 'boolean', 'select'].includes(type) ? type : 'text';
-  const colOptions = Array.isArray(options) ? options : [];
+  const colOptions = (options && typeof options === 'object') ? options : [];
   const isRequired = required ? 1 : 0;
+  const hasOptions = Array.isArray(colOptions) ? colOptions.length > 0 : Object.keys(colOptions).length > 0;
 
   try {
     const transaction = db.transaction(() => {
       const colRes = db.prepare(
         'INSERT INTO _system_columns (table_id, name, label, type, options, required) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(tableId, cleanName, label || cleanName, colType, colOptions.length ? JSON.stringify(colOptions) : null, isRequired);
+      ).run(tableId, cleanName, label || cleanName, colType, hasOptions ? JSON.stringify(colOptions) : null, isRequired);
 
       // Alter dynamic table
       const sqlType = mapSqlType(colType);
@@ -254,6 +256,47 @@ router.post('/:id/columns', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// PUT /api/tables/:id/columns/:columnId - Update column options or label
+router.put('/:id/columns/:columnId', requireAuth, requireAdmin, (req, res) => {
+  const tableId = parseInt(req.params.id, 10);
+  const columnId = parseInt(req.params.columnId, 10);
+  const table = db.prepare('SELECT * FROM _system_tables WHERE id = ?').get(tableId);
+  if (!table) return res.status(404).json({ error: 'Table introuvable' });
+
+  const column = db.prepare('SELECT * FROM _system_columns WHERE id = ? AND table_id = ?').get(columnId, tableId);
+  if (!column) return res.status(404).json({ error: 'Colonne introuvable' });
+
+  const { label, options, required } = req.body;
+  const newLabel = label !== undefined ? label : column.label;
+  const newRequired = required !== undefined ? (required ? 1 : 0) : column.required;
+  const hasOptions = options && typeof options === 'object' && (Array.isArray(options) ? options.length > 0 : Object.keys(options).length > 0);
+  const newOptionsJson = options !== undefined ? (hasOptions ? JSON.stringify(options) : null) : column.options;
+
+  try {
+    db.prepare('UPDATE _system_columns SET label = ?, options = ?, required = ? WHERE id = ? AND table_id = ?')
+      .run(newLabel, newOptionsJson, newRequired, columnId, tableId);
+
+    const updatedCol = db.prepare('SELECT * FROM _system_columns WHERE id = ?').get(columnId);
+    let parsedOpts = [];
+    if (updatedCol.options) {
+      try {
+        parsedOpts = JSON.parse(updatedCol.options);
+      } catch (_) {
+        parsedOpts = [];
+      }
+    }
+    res.json({
+      message: 'Colonne mise à jour',
+      column: {
+        ...updatedCol,
+        options: parsedOpts
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lors de la mise à jour de la colonne : ' + err.message });
+  }
+});
+
 router.delete('/:id/columns/:columnId', requireAuth, requireAdmin, (req, res) => {
   const tableId = parseInt(req.params.id, 10);
   const columnId = parseInt(req.params.columnId, 10);
@@ -265,7 +308,14 @@ router.delete('/:id/columns/:columnId', requireAuth, requireAdmin, (req, res) =>
 
   try {
     db.transaction(() => {
-      db.exec(`ALTER TABLE "app_${table.name}" DROP COLUMN "${column.name}"`);
+      try {
+        db.exec(`ALTER TABLE "app_${table.name}" DROP COLUMN "${column.name}"`);
+      } catch (sqlErr) {
+        // If column was already dropped or doesn't exist in SQLite, proceed with metadata cleanup
+        if (!sqlErr.message.includes('no such column')) {
+          throw sqlErr;
+        }
+      }
       db.prepare('DELETE FROM _system_columns WHERE id = ? AND table_id = ?').run(columnId, tableId);
     })();
     res.json({ message: `Colonne "${column.name}" supprimée` });

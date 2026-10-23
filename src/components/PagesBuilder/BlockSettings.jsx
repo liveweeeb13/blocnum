@@ -172,8 +172,7 @@ export default function BlockSettings({
       </div>
 
       <div className="mx-4 mt-3 rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2.5 text-[10px] leading-relaxed text-slate-600">
-        <p className="font-semibold text-indigo-800">Variables dans les textes</p>
-        <p className="mt-1">Nom connecté : <code className="text-indigo-700">$[username]</code></p>
+        <p className="mt-1"><code className="text-indigo-700">$[username] $[role]</code></p>
         <p className="mt-1 break-words font-mono text-[9px] text-slate-500">$[if[$[username]=="admin"]return["Bonjour l'admin"]else["Bonjour"]]</p>
       </div>
 
@@ -444,13 +443,13 @@ export default function BlockSettings({
                       className="w-full px-2.5 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-900 bg-white text-xs cursor-pointer"
                     >
                       <option value="auto">Auto (selon action)</option>
-                      <option value="arrow">Flèche (→)</option>
-                      <option value="external">Lien ext (↗)</option>
-                      <option value="plus">Plus (+)</option>
-                      <option value="check">Coche (✓)</option>
-                      <option value="zap">Éclair (⚡)</option>
-                      <option value="star">Étoile (★)</option>
-                      <option value="send">Envoi (➤)</option>
+                      <option value="arrow">Flèche</option>
+                      <option value="external">Lien externe</option>
+                      <option value="plus">Plus</option>
+                      <option value="check">Coche</option>
+                      <option value="zap">Éclair</option>
+                      <option value="star">Étoile</option>
+                      <option value="send">Envoi</option>
                       <option value="none">Sans icône</option>
                     </select>
                   </div>

@@ -5,6 +5,8 @@ import { resolveTemplateObject } from '../../utils/templateVariables';
 import { getAttachedButtons } from '../../utils/attachedButtons';
 import { getBlockAppearanceClassName, getBlockAppearanceStyle } from '../../utils/blockAppearance';
 import { runButtonAction } from '../../utils/actionRunner';
+import { getSelectOptions, getColumnDependency } from '../../utils/formOptions';
+import FormSelectField from '../Common/FormSelectField';
 import RecordModal from '../DatabaseStudio/RecordModal';
 import ActionButton from '../Common/ActionButton';
 import { 
@@ -590,10 +592,22 @@ function LiveFormBlock({ block, tableMeta, onDataChanged, onNavigatePage, showTo
   const columns = tableMeta?.columns || [];
 
   const handleChange = (name, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [name]: value
+      };
+      // Reset dependent fields if parent field changes
+      columns.forEach(otherCol => {
+        if (getColumnDependency(otherCol) === name) {
+          const validOptions = getSelectOptions(otherCol, next);
+          if (!validOptions.includes(next[otherCol.name])) {
+            next[otherCol.name] = '';
+          }
+        }
+      });
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -663,19 +677,14 @@ function LiveFormBlock({ block, tableMeta, onDataChanged, onNavigatePage, showTo
                       </label>
                     </div>
                   ) : col.type === 'select' ? (
-                    <select
-                      value={val}
-                      onChange={(e) => handleChange(col.name, e.target.value)}
-                      required={!!col.required}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                    >
-                      <option value="">-- Choisir une valeur --</option>
-                      {(col.options || []).map((opt, i) => (
-                        <option key={i} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
+                    <FormSelectField
+                      col={col}
+                      val={val}
+                      columns={columns}
+                      formData={formData}
+                      onChange={handleChange}
+                      size="xs"
+                    />
                   ) : col.type === 'number' || col.type === 'int' ? (
                     <input
                       type="number"

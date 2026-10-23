@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Edit3, Plus } from 'lucide-react';
+import { X, Save, Edit3, Plus, ArrowRight } from 'lucide-react';
+import { getSelectOptions, getColumnDependency } from '../../utils/formOptions';
+import FormSelectField from '../Common/FormSelectField';
 
 export default function RecordModal({ isOpen, onClose, onSave, columns = [], initialData = null }) {
   const [formData, setFormData] = useState({});
@@ -16,8 +18,6 @@ export default function RecordModal({ isOpen, onClose, onSave, columns = [], ini
       columns.forEach(col => {
         if (col.type === 'boolean') {
           defaults[col.name] = 0;
-        } else if (col.type === 'select' && col.options && col.options.length > 0) {
-          defaults[col.name] = col.options[0];
         } else {
           defaults[col.name] = '';
         }
@@ -29,10 +29,22 @@ export default function RecordModal({ isOpen, onClose, onSave, columns = [], ini
   if (!isOpen) return null;
 
   const handleChange = (name, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [name]: value
+      };
+      // Reset dependent columns if their parent value changes
+      columns.forEach(otherCol => {
+        if (getColumnDependency(otherCol) === name) {
+          const validOptions = getSelectOptions(otherCol, next);
+          if (!validOptions.includes(next[otherCol.name])) {
+            next[otherCol.name] = '';
+          }
+        }
+      });
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -109,19 +121,13 @@ export default function RecordModal({ isOpen, onClose, onSave, columns = [], ini
                       </label>
                     </div>
                   ) : col.type === 'select' ? (
-                    <select
-                      value={val}
-                      onChange={(e) => handleChange(col.name, e.target.value)}
-                      required={!!col.required}
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                    >
-                      <option value="">-- Sélectionner une valeur --</option>
-                      {(col.options || []).map((opt, i) => (
-                        <option key={i} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
+                    <FormSelectField
+                      col={col}
+                      val={val}
+                      columns={columns}
+                      formData={formData}
+                      onChange={handleChange}
+                    />
                   ) : col.type === 'number' || col.type === 'int' ? (
                     <input
                       type="number"

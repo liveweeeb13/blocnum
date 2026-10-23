@@ -5,6 +5,8 @@ import { resolveTemplateObject } from '../../utils/templateVariables';
 import { getAttachedButtons } from '../../utils/attachedButtons';
 import { getBlockAppearanceClassName, getBlockAppearanceStyle } from '../../utils/blockAppearance';
 import { runButtonAction } from '../../utils/actionRunner';
+import { getSelectOptions, getColumnDependency } from '../../utils/formOptions';
+import FormSelectField from '../Common/FormSelectField';
 import RecordModal from '../DatabaseStudio/RecordModal';
 import ActionButton from '../Common/ActionButton';
 import { CheckCircle2, AlertCircle, Search, ArrowRight, Edit, Trash } from 'lucide-react';
@@ -497,10 +499,22 @@ function FormBlock({ block, tableMeta, onDataChanged, onNavigatePage, showToast 
   const columns = tableMeta?.columns || [];
 
   const handleChange = (name, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [name]: value
+      };
+      // Reset dependent fields if parent field changes
+      columns.forEach(otherCol => {
+        if (getColumnDependency(otherCol) === name) {
+          const validOptions = getSelectOptions(otherCol, next);
+          if (!validOptions.includes(next[otherCol.name])) {
+            next[otherCol.name] = '';
+          }
+        }
+      });
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -570,19 +584,14 @@ function FormBlock({ block, tableMeta, onDataChanged, onNavigatePage, showToast 
                       </label>
                     </div>
                   ) : col.type === 'select' ? (
-                    <select
-                      value={val}
-                      onChange={(e) => handleChange(col.name, e.target.value)}
-                      required={!!col.required}
-                      className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:border-gray-900 bg-white"
-                    >
-                      <option value="">-- Choisir --</option>
-                      {(col.options || []).map((opt, i) => (
-                        <option key={i} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
+                    <FormSelectField
+                      col={col}
+                      val={val}
+                      columns={columns}
+                      formData={formData}
+                      onChange={handleChange}
+                      size="xs"
+                    />
                   ) : col.type === 'number' || col.type === 'int' ? (
                     <input
                       type="number"

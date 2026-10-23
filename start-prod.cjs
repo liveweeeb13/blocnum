@@ -8,8 +8,15 @@ const server = spawn('node', ['api-server.cjs'], {
   cwd: __dirname
 });
 
+const client = spawn('npm', ['run', 'preview'], {
+  stdio: 'inherit',
+  shell: true,
+  cwd: __dirname
+});
+
 function cleanup() {
   server.kill();
+  client.kill();
   process.exit(0);
 }
 

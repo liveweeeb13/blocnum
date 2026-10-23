@@ -4,6 +4,7 @@ import CreateTableModal from './CreateTableModal';
 import AddColumnModal from './AddColumnModal';
 import TableSettingsModal from './TableSettingsModal';
 import RecordModal from './RecordModal';
+import { getSelectOptions, getColumnDependency } from '../../utils/formOptions';
 import { 
   Database, Plus, Trash2, Edit2, Search, RefreshCw, 
   AlertCircle, CheckCircle2, ChevronRight, Hash, Calendar, ToggleLeft, List, Settings
@@ -351,10 +352,28 @@ export default function DatabaseStudio() {
                       <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold sticky top-0 z-10 backdrop-blur-xs">
                         <th className="py-3 px-4 w-14 font-mono text-slate-400"># ID</th>
                         {selectedTable.columns?.map(col => (
-                          <th key={col.id} title={`Type : ${getTypeLabel(col.type)}`} className="py-3 px-4 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              {getTypeIcon(col.type)}
-                              <span>{col.label}</span>
+                          <th key={col.id} title={`Type : ${getTypeLabel(col.type)}`} className="py-3 px-4 whitespace-nowrap group/col">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5">
+                                {getTypeIcon(col.type)}
+                                <span className="font-semibold text-slate-800">{col.label}</span>
+                                {col.options?.dependsOn && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded font-normal bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                    {col.options.dependsOn}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteColumn(col);
+                                }}
+                                title={`Supprimer la colonne « ${col.label} »`}
+                                className="opacity-0 group-hover/col:opacity-100 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </th>
                         ))}
@@ -370,10 +389,26 @@ export default function DatabaseStudio() {
                             {col.type === 'boolean' ? (
                               <input type="checkbox" checked={!!newRecordData[col.name]} onChange={e => setNewRecordData(prev => ({ ...prev, [col.name]: e.target.checked ? 1 : 0 }))} className="w-4 h-4 accent-indigo-600" aria-label={col.label} />
                             ) : col.type === 'select' ? (
-                              <select value={newRecordData[col.name] ?? ''} required={!!col.required} onChange={e => setNewRecordData(prev => ({ ...prev, [col.name]: e.target.value }))} className="w-full min-w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
-                                <option value="">{col.label}</option>
-                                {(col.options || []).map((option, index) => <option key={index} value={option}>{option}</option>)}
-                              </select>
+                              <InlineSelectCell
+                                col={col}
+                                value={newRecordData[col.name]}
+                                newRecordData={newRecordData}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setNewRecordData(prev => {
+                                    const next = { ...prev, [col.name]: val };
+                                    selectedTable.columns?.forEach(otherCol => {
+                                      if (getColumnDependency(otherCol) === col.name) {
+                                        const validOpts = getSelectOptions(otherCol, next);
+                                        if (!validOpts.includes(next[otherCol.name])) {
+                                          next[otherCol.name] = '';
+                                        }
+                                      }
+                                    });
+                                    return next;
+                                  });
+                                }}
+                              />
                             ) : (
                               <input type={col.type === 'number' || col.type === 'int' ? 'number' : col.type === 'date' ? 'date' : 'text'} step={col.type === 'int' ? '1' : col.type === 'number' ? 'any' : undefined} required={!!col.required} value={newRecordData[col.name] ?? ''} placeholder={col.label} onChange={e => setNewRecordData(prev => ({ ...prev, [col.name]: (col.type === 'number' || col.type === 'int') && e.target.value !== '' ? Number(e.target.value) : e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateInlineRecord(); } }} className="w-full min-w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
                             )}
@@ -498,6 +533,7 @@ export default function DatabaseStudio() {
         onClose={() => setIsAddColumnOpen(false)}
         onAdd={handleAddColumn}
         tableName={selectedTable?.label}
+        existingColumns={selectedTable?.columns || []}
       />
 
       <RecordModal
@@ -511,5 +547,35 @@ export default function DatabaseStudio() {
         initialData={editingRecord}
       />
     </div>
+  );
+}
+
+function InlineSelectCell({ col, value, onChange, newRecordData }) {
+  const options = getSelectOptions(col, newRecordData);
+  const dependency = getColumnDependency(col);
+  const isLocked = Boolean(dependency && (!newRecordData[dependency] || newRecordData[dependency] === ''));
+
+  // Auto-select first real option so there is NEVER any field name as an option
+  useEffect(() => {
+    if (!isLocked && options.length > 0 && (!value || !options.includes(value))) {
+      onChange({ target: { value: options[0] } });
+    }
+  }, [isLocked, options, value]);
+
+  return (
+    <select
+      value={value ?? (options[0] || '')}
+      required={!!col.required}
+      disabled={isLocked}
+      onChange={onChange}
+      className={`w-full min-w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 ${
+        isLocked ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
+      }`}
+    >
+      {isLocked && <option value="" disabled>-- En attente --</option>}
+      {options.map((option, index) => (
+        <option key={index} value={option}>{option}</option>
+      ))}
+    </select>
   );
 }

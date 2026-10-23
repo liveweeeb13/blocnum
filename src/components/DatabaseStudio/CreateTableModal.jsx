@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Table as TableIcon } from 'lucide-react';
 
 export default function CreateTableModal({ isOpen, onClose, onCreate }) {
@@ -6,10 +6,23 @@ export default function CreateTableModal({ isOpen, onClose, onCreate }) {
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
   const [columns, setColumns] = useState([
-    { name: 'titre', label: 'Titre', type: 'text', required: true }
+    { name: 'titre', label: 'Titre', type: 'text', required: true, optionsStr: '' }
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Always reset fields when opening modal
+  useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setLabel('');
+      setDescription('');
+      setColumns([
+        { name: 'titre', label: 'Titre', type: 'text', required: true, optionsStr: '' }
+      ]);
+      setError('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -45,8 +58,12 @@ export default function CreateTableModal({ isOpen, onClose, onCreate }) {
 
     const processedColumns = columns.map(c => {
       let options = [];
-      if (c.type === 'select' && c.optionsStr) {
-        options = c.optionsStr.split(',').map(s => s.trim()).filter(Boolean);
+      if (c.type === 'select') {
+        if (c.options && typeof c.options === 'object') {
+          options = c.options;
+        } else if (c.optionsStr) {
+          options = c.optionsStr.split(',').map(s => s.trim()).filter(Boolean);
+        }
       }
       return {
         name: c.name.trim(),
@@ -56,6 +73,11 @@ export default function CreateTableModal({ isOpen, onClose, onCreate }) {
         required: !!c.required
       };
     }).filter(c => !!c.name);
+
+    if (processedColumns.length === 0) {
+      setError('Veuillez ajouter au moins une colonne valide pour votre table');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -168,58 +190,70 @@ export default function CreateTableModal({ isOpen, onClose, onCreate }) {
             </div>
 
             <div className="space-y-3">
-              {columns.map((col, index) => (
-                <div key={index} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Nom technique (ex: montant)"
-                      value={col.name}
-                      onChange={(e) => handleColumnChange(index, 'name', e.target.value)}
-                      className="flex-1 px-3 py-1.5 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Libellé (ex: Montant TTC)"
-                      value={col.label}
-                      onChange={(e) => handleColumnChange(index, 'label', e.target.value)}
-                      className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                    <select
-                      value={col.type}
-                      onChange={(e) => handleColumnChange(index, 'type', e.target.value)}
-                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="text">Texte</option>
-                      <option value="int">Nombre entier (INT)</option>
-                      <option value="number">Nombre décimal (FLOAT)</option>
-                      <option value="date">Date</option>
-                      <option value="boolean">Booléen (Oui/Non)</option>
-                      <option value="select">Liste de choix</option>
-                    </select>
+              {columns.length === 0 ? (
+                <div className="p-5 rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500 bg-white">
+                  Aucune colonne définie pour le moment.{' '}
+                  <button
+                    type="button"
+                    onClick={handleAddColumn}
+                    className="text-indigo-600 font-semibold hover:underline cursor-pointer ml-1"
+                  >
+                    + Ajouter une colonne
+                  </button>
+                </div>
+              ) : (
+                columns.map((col, index) => (
+                  <div key={index} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nom technique (ex: montant)"
+                        value={col.name}
+                        onChange={(e) => handleColumnChange(index, 'name', e.target.value)}
+                        className="flex-1 px-3 py-1.5 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Libellé (ex: Montant TTC)"
+                        value={col.label}
+                        onChange={(e) => handleColumnChange(index, 'label', e.target.value)}
+                        className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <select
+                        value={col.type}
+                        onChange={(e) => handleColumnChange(index, 'type', e.target.value)}
+                        className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="text">Texte</option>
+                        <option value="int">Nombre entier (INT)</option>
+                        <option value="number">Nombre décimal (FLOAT)</option>
+                        <option value="date">Date</option>
+                        <option value="boolean">Booléen (Oui/Non)</option>
+                        <option value="select">Liste de choix</option>
+                      </select>
 
-                    {columns.length > 1 && (
                       <button
                         type="button"
                         onClick={() => handleRemoveColumn(index)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Supprimer cette colonne"
+                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                    </div>
+
+                    {col.type === 'select' && (
+                      <input
+                        type="text"
+                        placeholder="Choix séparés par des virgules (ex: En attente, Validé, Annulé)"
+                        value={col.optionsStr || ''}
+                        onChange={(e) => handleColumnChange(index, 'optionsStr', e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
                     )}
                   </div>
-
-                  {col.type === 'select' && (
-                    <input
-                      type="text"
-                      placeholder="Choix séparés par des virgules (ex: En attente, Validé, Annulé)"
-                      value={col.optionsStr || ''}
-                      onChange={(e) => handleColumnChange(index, 'optionsStr', e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  )}
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </form>

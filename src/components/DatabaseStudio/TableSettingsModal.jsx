@@ -69,7 +69,16 @@ export default function TableSettingsModal({ isOpen, table, onClose, onSave, onA
               <div className="space-y-2">
                 {table.columns.map(column => (
                   <div key={column.id} title={`Type : ${typeLabel(column.type)}`} className="group relative flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5">
-                    <div className="flex min-w-0 items-center gap-2">{typeIcon(column.type)}<span className="truncate text-xs font-medium text-slate-800">{column.label}</span><span className="truncate font-mono text-[10px] text-slate-400">{column.name}</span></div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      {typeIcon(column.type)}
+                      <span className="truncate text-xs font-medium text-slate-800">{column.label}</span>
+                      <span className="truncate font-mono text-[10px] text-slate-400">{column.name}</span>
+                      {column.options?.dependsOn && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          Dépend de : {column.options.dependsOn}
+                        </span>
+                      )}
+                    </div>
                     <button type="button" onClick={() => onDeleteColumn(column)} title={`Supprimer ${column.label}`} aria-label={`Supprimer la colonne ${column.label}`} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                     <span className="pointer-events-none absolute bottom-full left-3 z-20 mb-1 hidden rounded-md bg-slate-900 px-2 py-1 text-[10px] font-medium text-white shadow-lg group-hover:block group-focus-within:block">Type : {typeLabel(column.type)}</span>
                   </div>

@@ -1,7 +1,7 @@
 {
   "name": "blocnum",
-  "version": "1.0.0",
-  "description": "BlocNum — plateforme BTP et numérique avec base de données dynamique et éditeur visuel",
+  "version": "1.1.0",
+  "description": "BlocNum base de données dynamique et éditeur visuel",
   "type": "module",
   "scripts": {
     "server": "node api-server.cjs",
@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "dev": "node start-dev.cjs",
     "build": "vite build",
-    "prod": "node api-server.cjs",
-    "prod:build": "npm run build && node api-server.cjs",
+    "prod": "npm run build && node start-prod.cjs",
     "lint": "oxlint"
   },
   "dependencies": {
