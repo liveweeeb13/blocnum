@@ -1,0 +1,39 @@
+{
+  "name": "blocnum",
+  "version": "1.0.0",
+  "description": "BlocNum — plateforme BTP et numérique avec base de données dynamique et éditeur visuel",
+  "type": "module",
+  "scripts": {
+    "server": "node api-server.cjs",
+    "client": "vite",
+    "preview": "vite preview",
+    "dev": "node start-dev.cjs",
+    "build": "vite build",
+    "prod": "npm run build && node start-prod.cjs",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "oxlint": "^1.88.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.4"
+  },
+  "keywords": ["low-code", "no-code", "sqlite", "react"],
+  "author": "",
+  "license": "MIT"
+}
+
