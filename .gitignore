@@ -1,5 +1,5 @@
 node_modules/
-dist/
+# dist/ (décommenter si vous déployez sans build sur le serveur)
 dist-ssr/
 .env
 .env.*

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "dev": "node start-dev.cjs",
     "build": "vite build",
-    "prod": "npm run build && node start-prod.cjs",
+    "prod": "node api-server.cjs",
+    "prod:build": "npm run build && node api-server.cjs",
     "lint": "oxlint"
   },
   "dependencies": {

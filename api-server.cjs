@@ -9,7 +9,8 @@ const tableRoutes = require('./routes/tables.cjs');
 const pageRoutes = require('./routes/pages.cjs');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || process.env.SERVER_PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(cors());
 app.use(express.json());
@@ -33,8 +34,8 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-const server = app.listen(PORT, () => {
-  console.log(`BlocNum server running on http://localhost:${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+  console.log(`BlocNum server running on http://${HOST}:${PORT}`);
 });
 
 module.exports = { app, server };
