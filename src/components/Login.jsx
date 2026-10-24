@@ -36,7 +36,6 @@ export default function Login() {
 
         <div className="rounded-3xl border border-white/70 bg-white p-7 shadow-[0_30px_100px_-35px_rgba(0,0,0,0.7)] sm:p-9">
           <div className="mb-7">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">Espace de travail</p>
             <h1 className="text-2xl font-bold tracking-tight text-slate-950">Connexion</h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">Connecte-toi pour accéder à ton espace BlocNum.</p>
           </div>
@@ -107,7 +106,7 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-500">BlocNum · BTP & numérique</p>
+        <p className="mt-6 text-center text-xs text-slate-500">BlocNum</p>
       </section>
     </main>
   );
