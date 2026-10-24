@@ -21,7 +21,9 @@ export default function BlockSettings({
   onAttachStandaloneToBlock,
   onAddChildBlock,
   onSelectBlock,
-  onExtractChildBlock
+  onExtractChildBlock,
+  isMobileDrawer = false,
+  onClose = null,
 }) {
   const [btnTab, setBtnTab] = useState('style'); // 'style' | 'position' | 'action'
   const [blockTab, setBlockTab] = useState('props'); // 'props' | 'button'
@@ -45,7 +47,7 @@ export default function BlockSettings({
 
   if (!block) {
     return (
-      <aside className="w-80 bg-white border-l border-slate-200 p-6 flex flex-col items-center justify-center text-center text-slate-400 text-xs shrink-0">
+      <aside className={isMobileDrawer ? "w-full bg-white p-6 flex flex-col items-center justify-center text-center text-slate-400 text-xs" : "w-80 bg-white border-l border-slate-200 p-6 flex flex-col items-center justify-center text-center text-slate-400 text-xs shrink-0"}>
         <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center mb-3">
           <Settings className="w-6 h-6 text-slate-400" />
         </div>
@@ -160,22 +162,33 @@ export default function BlockSettings({
   ];
 
   return (
-    <aside className="w-80 bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden shrink-0">
+    <aside className={isMobileDrawer ? "w-full bg-white flex flex-col h-full overflow-hidden" : "w-80 bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden shrink-0"}>
       {/* Top Header Bar */}
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-indigo-600" />
           <span className="text-xs font-semibold text-slate-900">
             {getHumanBlockTypeName(block.type)}
           </span>
         </div>
-        <button
-          onClick={() => onDelete(block.id)}
-          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-          title="Supprimer ce composant"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onDelete(block.id)}
+            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+            title="Supprimer ce composant"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="px-2.5 py-1 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium transition-colors cursor-pointer ml-1"
+              title="Fermer"
+            >
+              Fermer
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mx-4 mt-3 rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2.5 text-[10px] leading-relaxed text-slate-600">
@@ -986,6 +999,29 @@ export default function BlockSettings({
                               }`}
                           >
                             {g.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="block text-slate-700 font-medium mb-1.5">Ajouter un bloc dans cet encadré</label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { type: 'header', label: 'Titre', icon: '📝' },
+                          { type: 'button', label: 'Bouton', icon: '🔘' },
+                          { type: 'table', label: 'Tableau', icon: '📊' },
+                          { type: 'form', label: 'Formulaire', icon: '✍️' },
+                          { type: 'alert', label: 'Note', icon: '💡' },
+                        ].map(item => (
+                          <button
+                            key={item.type}
+                            type="button"
+                            onClick={() => onAddChildBlock && onAddChildBlock(block.id, item.type)}
+                            className="p-1.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-lg text-[11px] font-medium text-slate-700 hover:text-indigo-900 flex items-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <span>{item.icon}</span>
+                            <span>{item.label}</span>
                           </button>
                         ))}
                       </div>

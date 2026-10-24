@@ -11,7 +11,8 @@ import CanvasBlock from './CanvasBlock';
 import BlockSettings from './BlockSettings';
 import { 
   Layout, Plus, Save, Eye, Trash2, CheckCircle2, 
-  Type, Table, FormInput, BarChart2, Info, ChevronRight, MousePointer, GripVertical, PlusCircle
+  Type, Table, FormInput, BarChart2, Info, ChevronRight, MousePointer, GripVertical, PlusCircle,
+  List, X, Sliders
 } from 'lucide-react';
 
 export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
@@ -24,6 +25,8 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [mobilePagesDrawerOpen, setMobilePagesDrawerOpen] = useState(false);
+  const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
 
   // Drag and Drop States
   const [draggedCanvasIndex, setDraggedCanvasIndex] = useState(null);
@@ -347,6 +350,10 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
     const block = createBlock(type);
     setLayout([...layout, block]);
     setSelectedBlockId(block.id);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsMobileSettingsOpen(true);
+    }
+    showToast(`Composant ${getHumanBlockTypeName(type)} ajouté !`);
   };
 
   // Insert block at specific index
@@ -356,7 +363,10 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
     newLayout.splice(index, 0, block);
     setLayout(newLayout);
     setSelectedBlockId(block.id);
-    showToast(`Bloc ${type} inséré`);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsMobileSettingsOpen(true);
+    }
+    showToast(`Composant ${getHumanBlockTypeName(type)} inséré`);
   };
 
   // Move existing block from fromIndex to toIndex
@@ -560,11 +570,32 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
     setLayout(newLayout);
     if (selectedBlockId === blockId) {
       setSelectedBlockId(newLayout.length > 0 ? newLayout[0].id : null);
+      setIsMobileSettingsOpen(false);
     }
   };
 
   const handleUpdateBlock = (updatedBlock) => {
     setLayout(updateBlockById(layout, updatedBlock));
+  };
+
+  const handleSelectBlock = (id) => {
+    setSelectedBlockId(id);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsMobileSettingsOpen(true);
+    }
+  };
+
+  const getHumanBlockTypeName = (type) => {
+    switch (type) {
+      case 'button': return 'Bouton';
+      case 'header': return 'Texte';
+      case 'table': return 'Tableau de données';
+      case 'form': return 'Formulaire';
+      case 'stats': return 'Compteur';
+      case 'alert': return 'Note';
+      case 'container': return 'Conteneur';
+      default: return type || 'Composant';
+    }
   };
 
   const selectedBlock = findBlockById(layout, selectedBlockId);
@@ -580,8 +611,8 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
         </div>
       )}
 
-      {/* Sidebar: Pages list */}
-      <aside className="w-full md:w-56 bg-white border-r border-gray-200 flex flex-col shrink-0">
+      {/* Sidebar: Pages list (Desktop >= md) */}
+      <aside className="hidden md:flex md:w-56 bg-white border-r border-gray-200 flex-col shrink-0">
         <div className="p-3.5 border-b border-gray-100 flex items-center justify-between">
           <span className="text-xs font-semibold text-gray-900">Pages</span>
           <button
@@ -622,51 +653,155 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
         </div>
       </aside>
 
+      {/* Mobile Top Bar (Screen < md) */}
+      <div className="md:hidden bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 shadow-2xs shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Layout className="w-4 h-4 text-indigo-600 shrink-0" />
+          <select
+            value={selectedPage?.id || ''}
+            onChange={(e) => {
+              const id = Number(e.target.value);
+              if (id) loadPageDetails(id);
+            }}
+            className="w-full text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 truncate"
+          >
+            {pages.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.title} ({p.slug === 'index' ? '/page/' : `/${p.slug}`})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-xs cursor-pointer"
+            title="Créer une nouvelle page"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Page</span>
+          </button>
+          <button
+            onClick={() => setMobilePagesDrawerOpen(true)}
+            className="p-1.5 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs cursor-pointer"
+            title="Toutes les pages"
+            aria-label="Toutes les pages"
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Pages Slide-over Drawer */}
+      {mobilePagesDrawerOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex justify-end animate-fade-in">
+          <div className="w-4/5 max-w-xs bg-white h-full shadow-2xl flex flex-col">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Layout className="w-4 h-4 text-indigo-600" />
+                <h2 className="text-sm font-semibold text-slate-900">Vos Pages</h2>
+              </div>
+              <button 
+                onClick={() => setMobilePagesDrawerOpen(false)} 
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+              {pages.map(page => {
+                const isSelected = selectedPage?.id === page.id;
+                return (
+                  <div key={page.id} className={`flex items-center justify-between p-2.5 rounded-xl text-xs transition-colors ${isSelected ? 'bg-indigo-50 text-indigo-900 font-semibold ring-1 ring-indigo-200' : 'text-slate-600 hover:bg-slate-100'}`}>
+                    <button
+                      onClick={() => {
+                        loadPageDetails(page.id);
+                        setMobilePagesDrawerOpen(false);
+                      }}
+                      className="flex-1 text-left truncate flex items-center gap-2 cursor-pointer"
+                    >
+                      <Layout className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-indigo-600' : 'text-slate-400'}`} />
+                      <div className="truncate">
+                        <div className="truncate">{page.title}</div>
+                        <div className="text-[10px] text-slate-400 font-mono truncate">{page.slug === 'index' ? '/page/' : `/${page.slug}`}</div>
+                      </div>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setMobilePagesDrawerOpen(false);
+                        handleDeletePage(page);
+                      }} 
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer ml-1"
+                      title="Supprimer la page"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-3 border-t border-slate-100 bg-slate-50">
+              <button
+                onClick={() => {
+                  setMobilePagesDrawerOpen(false);
+                  setIsCreateModalOpen(true);
+                }}
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Créer une nouvelle page</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Canvas Area */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {selectedPage ? (
           <>
             {/* Top Toolbar */}
-            <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Page :</span>
+            <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2 sm:py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-xs text-slate-400 shrink-0">Page :</span>
                   <input
                     type="text"
                     value={selectedPage.title}
                     onChange={(e) => setSelectedPage({ ...selectedPage, title: e.target.value })}
-                    className="text-sm font-semibold text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-indigo-600 focus:outline-none px-1 rounded-sm transition-colors"
+                    className="text-xs sm:text-sm font-semibold text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-indigo-600 focus:outline-none px-1 rounded-sm transition-colors truncate max-w-[150px] sm:max-w-none"
                   />
                 </div>
-                <span className="text-xs text-slate-400 font-mono bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">
+                <span className="text-[10px] sm:text-xs text-slate-400 font-mono bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80 truncate">
                   {selectedPage.slug === 'index' ? '/page/' : `/page/${selectedPage.slug}`}
                 </span>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap justify-end shrink-0">
                 <button
                   onClick={() => onOpenViewPage && onOpenViewPage(selectedPage.slug)}
-                  className="px-3.5 py-1.5 text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  className="px-2.5 sm:px-3.5 py-1.5 text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
                   title="Tester cette page en mode interactif"
                 >
-                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Tester en direct</span>
+                  <Eye className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="hidden sm:inline">Tester en direct</span>
+                  <span className="sm:hidden">Tester</span>
                 </button>
 
                 <button
                   onClick={handleSavePage}
                   disabled={saving}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-98"
+                  className="px-2.5 sm:px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-98"
                   title="Sauvegarder l'agencement de la page"
                 >
-                  <Save className="w-3.5 h-3.5" />
+                  <Save className="w-3.5 h-3.5 shrink-0" />
                   <span>{saving ? 'Sauvegarde...' : 'Sauvegarder'}</span>
                 </button>
 
                 <button
                   onClick={() => handleDeletePage(selectedPage)}
-                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                  className="p-1.5 sm:p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
                   title="Supprimer la page"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -675,7 +810,7 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
             </div>
 
             {/* Draggable Component Palette Bar */}
-            <div className="bg-slate-50 border-b border-slate-200/80 px-6 py-2.5 flex items-center gap-2 overflow-x-auto text-xs">
+            <div className="bg-slate-50 border-b border-slate-200/80 px-3 sm:px-6 py-2 sm:py-2.5 flex items-center gap-1.5 sm:gap-2 overflow-x-auto text-xs no-scrollbar">
               <span className="text-slate-400 text-[11px] font-medium mr-1 flex items-center gap-1 shrink-0">
                 <span>Composants :</span>
               </span>
@@ -768,10 +903,10 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
             </div>
 
             {/* Canvas Body + Properties Panel */}
-            <div className="flex-1 flex overflow-hidden">
-              {/* Canvas Scroll Area */}
-              <div className="flex-1 overflow-y-auto p-6 md:p-8">
-                <div className="max-w-3xl mx-auto pb-24">
+            <div className="flex-1 flex overflow-hidden relative">
+              {/* Canvas Scroll Area - full width on mobile, flex-1 on desktop */}
+              <div className="w-full flex-1 overflow-y-auto p-3 sm:p-6 md:p-8">
+                <div className="max-w-3xl mx-auto pb-28">
                   {/* Drop zone at the very top (index 0) */}
                   <DropZone
                     index={0}
@@ -786,36 +921,36 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                     <div 
                       onDragOver={(e) => handleDragOverZone(e, 0)}
                       onDrop={(e) => handleDropOnZone(e, 0)}
-                      className={`p-8 md:p-12 text-center border-2 border-dashed rounded-2xl transition-all ${
+                      className={`p-6 sm:p-10 md:p-12 text-center border-2 border-dashed rounded-2xl transition-all ${
                         activeDropIndex === 0
                           ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900 shadow-md'
                           : 'border-slate-300 bg-white shadow-xs'
                       }`}
                     >
-                      <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
-                        <Layout className="w-7 h-7 text-indigo-600" />
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+                        <Layout className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-600" />
                       </div>
-                      <h3 className="text-base font-bold text-slate-800">
+                      <h3 className="text-sm sm:text-base font-bold text-slate-800">
                         Votre page est prête à être construite !
                       </h3>
-                     <br></br>
+                      <p className="text-xs text-slate-400 mt-1 mb-4">Ajoutez un premier bloc pour commencer :</p>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto text-left">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-xl mx-auto text-left">
                         <button
                           type="button"
                           onClick={() => handleAddBlock('header')}
-                          className="p-3.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
+                          className="p-3 bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
                         >
                           <div className="flex items-center gap-2.5 font-semibold text-xs text-slate-900 group-hover:text-blue-900">
                             <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xs">📝</span>
                             <span>En-tête & Titre</span>
                           </div>
-                               </button>
+                        </button>
 
                         <button
                           type="button"
                           onClick={() => handleAddBlock('table')}
-                          className="p-3.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
+                          className="p-3 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200 hover:border-emerald-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
                         >
                           <div className="flex items-center gap-2.5 font-semibold text-xs text-slate-900 group-hover:text-emerald-900">
                             <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">📊</span>
@@ -826,18 +961,18 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                         <button
                           type="button"
                           onClick={() => handleAddBlock('form')}
-                          className="p-3.5 bg-slate-50 hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
+                          className="p-3 bg-slate-50 hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
                         >
                           <div className="flex items-center gap-2.5 font-semibold text-xs text-slate-900 group-hover:text-amber-900">
                             <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs">✍️</span>
                             <span>Formulaire d'ajout</span>
                           </div>
-                           </button>
+                        </button>
 
                         <button
                           type="button"
                           onClick={() => handleAddBlock('button')}
-                          className="p-3.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
+                          className="p-3 bg-slate-50 hover:bg-indigo-50/50 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
                         >
                           <div className="flex items-center gap-2.5 font-semibold text-xs text-slate-900 group-hover:text-indigo-900">
                             <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs">🔘</span>
@@ -848,7 +983,7 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                         <button
                           type="button"
                           onClick={() => handleAddBlock('container')}
-                          className="p-3.5 bg-slate-50 hover:bg-violet-50/50 border border-slate-200 hover:border-violet-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
+                          className="p-3 bg-slate-50 hover:bg-violet-50/50 border border-slate-200 hover:border-violet-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
                         >
                           <div className="flex items-center gap-2.5 font-semibold text-xs text-slate-900 group-hover:text-violet-900">
                             <span className="w-6 h-6 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center text-xs">📦</span>
@@ -865,7 +1000,7 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                           tables={tables}
                           pages={pages}
                           isSelected={selectedBlockId === block.id}
-                          onSelect={() => setSelectedBlockId(block.id)}
+                          onSelect={() => handleSelectBlock(block.id)}
                           onMoveUp={() => handleMoveUp(block.id)}
                           onMoveDown={() => handleMoveDown(block.id)}
                           onDelete={handleDeleteBlock}
@@ -883,10 +1018,10 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                           onAddChildBlock={(containerId, childType) => {
                             const child = createBlock(childType);
                             setLayout(addChildToContainer(layout, containerId, child));
-                            setSelectedBlockId(child.id);
+                            handleSelectBlock(child.id);
                             showToast('Bloc ajouté dans le conteneur !');
                           }}
-                          onSelectChildBlock={(id) => setSelectedBlockId(id)}
+                          onSelectChildBlock={(id) => handleSelectBlock(id)}
                           onMoveChildBlock={(id, dir) => setLayout(moveBlockInLayout(layout, id, dir))}
                           onDeleteChildBlock={(id) => handleDeleteBlock(id)}
                           onExtractChildBlock={(id) => {
@@ -911,32 +1046,116 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                 </div>
               </div>
 
-              {/* Settings Panel */}
-              <BlockSettings
-                block={selectedBlock}
-                tables={tables}
-                pages={pages}
-                layout={layout}
-                onChange={handleUpdateBlock}
-                onDelete={handleDeleteBlock}
-                onMoveUp={() => selectedBlock && handleMoveUp(selectedBlock.id)}
-                onMoveDown={() => selectedBlock && handleMoveDown(selectedBlock.id)}
-                onAttachButton={() => selectedBlock && attachButtonToBlock(selectedBlock.id)}
-                onDetachToStandalone={handleDetachAttachedButtonToStandalone}
-                onAttachStandaloneToBlock={handleAttachStandaloneToBlock}
-                onAddChildBlock={(containerId, childType) => {
-                  const child = createBlock(childType);
-                  setLayout(addChildToContainer(layout, containerId, child));
-                  setSelectedBlockId(child.id);
-                  showToast('Bloc ajouté dans le conteneur !');
-                }}
-                onSelectBlock={(id) => setSelectedBlockId(id)}
-                onExtractChildBlock={(id) => {
-                  setLayout(extractBlockFromContainer(layout, id));
-                  showToast('Bloc extrait du conteneur !');
-                }}
-              />
+              {/* Desktop Settings Panel (Visible only on lg+) */}
+              <div className="hidden lg:flex shrink-0">
+                <BlockSettings
+                  block={selectedBlock}
+                  tables={tables}
+                  pages={pages}
+                  layout={layout}
+                  onChange={handleUpdateBlock}
+                  onDelete={handleDeleteBlock}
+                  onMoveUp={() => selectedBlock && handleMoveUp(selectedBlock.id)}
+                  onMoveDown={() => selectedBlock && handleMoveDown(selectedBlock.id)}
+                  onAttachButton={() => selectedBlock && attachButtonToBlock(selectedBlock.id)}
+                  onDetachToStandalone={handleDetachAttachedButtonToStandalone}
+                  onAttachStandaloneToBlock={handleAttachStandaloneToBlock}
+                  onAddChildBlock={(containerId, childType) => {
+                    const child = createBlock(childType);
+                    setLayout(addChildToContainer(layout, containerId, child));
+                    setSelectedBlockId(child.id);
+                    showToast('Bloc ajouté dans le conteneur !');
+                  }}
+                  onSelectBlock={(id) => setSelectedBlockId(id)}
+                  onExtractChildBlock={(id) => {
+                    setLayout(extractBlockFromContainer(layout, id));
+                    showToast('Bloc extrait du conteneur !');
+                  }}
+                />
+              </div>
             </div>
+
+            {/* Mobile Bottom Floating Action Bar (When block selected on screen < lg) */}
+            {selectedBlock && (
+              <div className="lg:hidden fixed bottom-4 left-3 right-3 z-30 bg-slate-900/95 backdrop-blur-md text-white px-3.5 py-2.5 rounded-2xl shadow-2xl border border-slate-700/60 flex items-center justify-between gap-2 animate-fade-in">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 animate-pulse" />
+                  <div className="truncate">
+                    <span className="text-xs font-semibold truncate block">
+                      {getHumanBlockTypeName(selectedBlock.type)}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      {selectedBlock.title || selectedBlock.label || (selectedBlock.type === 'button' ? selectedBlock.text : 'Composant sélectionné')}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileSettingsOpen(true)}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>Régler</span>
+                </button>
+              </div>
+            )}
+
+            {/* Mobile Settings Slide-up Drawer (Screen < lg) */}
+            {isMobileSettingsOpen && selectedBlock && (
+              <div className="lg:hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex flex-col justify-end animate-fade-in">
+                <div className="bg-white w-full h-[90vh] max-h-[90vh] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden">
+                  {/* Drawer Header */}
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Sliders className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="text-xs font-bold text-slate-900 truncate">
+                        Propriétés : {getHumanBlockTypeName(selectedBlock.type)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsMobileSettingsOpen(false)}
+                      className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer shadow-2xs"
+                    >
+                      <span>✓ Retour</span>
+                    </button>
+                  </div>
+
+                  {/* Settings Content */}
+                  <div className="flex-1 overflow-y-auto">
+                    <BlockSettings
+                      block={selectedBlock}
+                      tables={tables}
+                      pages={pages}
+                      layout={layout}
+                      isMobileDrawer={true}
+                      onClose={() => setIsMobileSettingsOpen(false)}
+                      onChange={handleUpdateBlock}
+                      onDelete={(id) => {
+                        handleDeleteBlock(id);
+                        setIsMobileSettingsOpen(false);
+                      }}
+                      onMoveUp={() => selectedBlock && handleMoveUp(selectedBlock.id)}
+                      onMoveDown={() => selectedBlock && handleMoveDown(selectedBlock.id)}
+                      onAttachButton={() => selectedBlock && attachButtonToBlock(selectedBlock.id)}
+                      onDetachToStandalone={handleDetachAttachedButtonToStandalone}
+                      onAttachStandaloneToBlock={handleAttachStandaloneToBlock}
+                      onAddChildBlock={(containerId, childType) => {
+                        const child = createBlock(childType);
+                        setLayout(addChildToContainer(layout, containerId, child));
+                        setSelectedBlockId(child.id);
+                        showToast('Bloc ajouté dans le conteneur !');
+                      }}
+                      onSelectBlock={(id) => setSelectedBlockId(id)}
+                      onExtractChildBlock={(id) => {
+                        setLayout(extractBlockFromContainer(layout, id));
+                        showToast('Bloc extrait du conteneur !');
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-400 text-xs">

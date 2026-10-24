@@ -203,22 +203,22 @@ function CanvasBlockContent({
       )}
 
       {/* Header bar of block with Grip Handle */}
-      <div className="bg-gray-50 px-3.5 py-1.5 border-b border-gray-100 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
+      <div className="bg-gray-50 px-3 sm:px-3.5 py-1.5 border-b border-gray-100 flex items-center justify-between text-xs gap-1.5">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 flex-wrap">
           {/* Drag Handle Icon */}
           <div 
-            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-700 p-0.5 flex items-center gap-1"
+            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-700 p-0.5 flex items-center gap-1 shrink-0"
             title="Glisser-déposer pour réordonner"
           >
             <GripVertical className="w-3.5 h-3.5" />
           </div>
 
-          <span className="font-semibold text-slate-800">
+          <span className="font-semibold text-slate-800 shrink-0">
             {getHumanTypeName(block.type)}
           </span>
           
           {block.type === 'button' && (
-            <span className="text-[10px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/80 font-mono font-medium">
+            <span className="text-[10px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/80 font-mono font-medium truncate max-w-[140px]">
               {block.mode === 'conditional'
                 ? 'Si ... Alors'
                 : (block.action?.type === 'page' ? `/${block.action?.pageSlug || ''}` : block.action?.type || 'action')}
@@ -226,18 +226,18 @@ function CanvasBlockContent({
           )}
           
           {block.tableName && (
-            <span className="text-[10px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/80 font-medium">
+            <span className="text-[10px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/80 font-medium truncate max-w-[140px]">
               Table : {connectedTable?.label || block.tableName}
             </span>
           )}
           {getAttachedButtons(block).length > 0 && (
-            <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 font-medium">
-              + {getAttachedButtons(block).length} bouton(s) fixé(s)
+            <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 font-medium shrink-0">
+              + {getAttachedButtons(block).length} bouton(s)
             </span>
           )}
           {block.visibilityRule && (
             <span 
-              className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 font-medium flex items-center gap-1"
+              className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 font-medium flex items-center gap-1 shrink-0"
               title={`Affiché uniquement si : ${block.visibilityRule}`}
             >
               <span>👁️</span>
@@ -246,7 +246,7 @@ function CanvasBlockContent({
         </div>
 
         {/* Action icons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
           {onExtractChildBlock && (
             <button
               type="button"
@@ -465,12 +465,31 @@ function CanvasBlockContent({
         {block.type === 'container' && (
           <div className="space-y-3">
             {(!block.blocks || block.blocks.length === 0) ? (
-              <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/40 text-center">
+              <div className="p-6 sm:p-8 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/40 text-center">
                 <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto mb-2 text-base">
                   📦
                 </div>
                 <p className="text-xs font-semibold text-slate-700">Conteneur vide</p>
                 <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Glissez un bloc ici ou choisissez un bloc à insérer dans cet encadré :</p>
+                <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-md mx-auto">
+                  {[
+                    { type: 'header', label: 'Titre', icon: '📝' },
+                    { type: 'button', label: 'Bouton', icon: '🔘' },
+                    { type: 'table', label: 'Tableau', icon: '📊' },
+                    { type: 'form', label: 'Formulaire', icon: '✍️' },
+                    { type: 'alert', label: 'Note', icon: '💡' },
+                  ].map(item => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onAddChildBlock && onAddChildBlock(block.id, item.type); }}
+                      className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 flex items-center gap-1 cursor-pointer shadow-2xs hover:border-indigo-300"
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="space-y-3">

@@ -28,18 +28,18 @@ export default function Navbar({ activeTab, setActiveTab }) {
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-      <div className="w-full px-0">
-        <div className="flex items-center justify-between h-14">
+      <div className="w-full px-2 sm:px-4">
+        <div className="flex items-center justify-between h-14 gap-1.5 sm:gap-4">
           {/* Brand */}
-          <div className="flex items-center">
-            <a href="/" className="ml-3 inline-flex items-center gap-2 text-lg font-bold tracking-tight text-slate-900 hover:text-indigo-700 transition-colors">
-              <img src="/blocnum-pixel.svg" alt="" aria-hidden="true" className="h-7 w-7" style={{ imageRendering: 'pixelated' }} />
-              <span>BlocNum</span>
+          <div className="flex items-center shrink-0">
+            <a href="/" className="inline-flex items-center gap-1.5 sm:gap-2 text-base sm:text-lg font-bold tracking-tight text-slate-900 hover:text-indigo-700 transition-colors">
+              <img src="/blocnum-pixel.svg" alt="" aria-hidden="true" className="h-6 w-6 sm:h-7 sm:w-7 shrink-0" style={{ imageRendering: 'pixelated' }} />
+              <span className="hidden min-[380px]:inline">BlocNum</span>
             </a>
           </div>
 
           {/* Center Navigation Tabs */}
-          <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shadow-2xs">
+          <nav className="flex items-center gap-0.5 sm:gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shadow-2xs shrink-0">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -47,21 +47,35 @@ export default function Navbar({ activeTab, setActiveTab }) {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                     isActive
                       ? 'bg-white text-slate-900 shadow-xs font-semibold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                   }`}
                 >
                   <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
-                  <span className={isActive ? 'inline' : 'sr-only'}>{item.label}</span>
+                  <span className={isActive ? 'inline' : 'sr-only'}>
+                    {item.id === 'pages' ? (
+                      <>
+                        <span className="sm:hidden">Pages</span>
+                        <span className="hidden sm:inline">Éditeur de Pages</span>
+                      </>
+                    ) : item.id === 'view' ? (
+                      <>
+                        <span className="sm:hidden">Direct</span>
+                        <span className="hidden sm:inline">Tester en direct</span>
+                      </>
+                    ) : (
+                      item.label
+                    )}
+                  </span>
                 </button>
               );
             })}
           </nav>
 
           {/* Right Section: Link to /page + User & Logout */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Quick button to open public live page (/page) */}
             <a
               href="/page"

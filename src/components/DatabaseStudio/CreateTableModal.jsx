@@ -204,42 +204,44 @@ export default function CreateTableModal({ isOpen, onClose, onCreate }) {
               ) : (
                 columns.map((col, index) => (
                   <div key={index} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                       <input
                         type="text"
                         placeholder="Nom technique (ex: montant)"
                         value={col.name}
                         onChange={(e) => handleColumnChange(index, 'name', e.target.value)}
-                        className="flex-1 px-3 py-1.5 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="w-full sm:flex-1 px-3 py-1.5 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       />
                       <input
                         type="text"
                         placeholder="Libellé (ex: Montant TTC)"
                         value={col.label}
                         onChange={(e) => handleColumnChange(index, 'label', e.target.value)}
-                        className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="w-full sm:flex-1 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       />
-                      <select
-                        value={col.type}
-                        onChange={(e) => handleColumnChange(index, 'type', e.target.value)}
-                        className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      >
-                        <option value="text">Texte</option>
-                        <option value="int">Nombre entier (INT)</option>
-                        <option value="number">Nombre décimal (FLOAT)</option>
-                        <option value="date">Date</option>
-                        <option value="boolean">Booléen (Oui/Non)</option>
-                        <option value="select">Liste de choix</option>
-                      </select>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <select
+                          value={col.type}
+                          onChange={(e) => handleColumnChange(index, 'type', e.target.value)}
+                          className="flex-1 sm:flex-initial px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          <option value="text">Texte</option>
+                          <option value="int">Nombre entier (INT)</option>
+                          <option value="number">Nombre décimal (FLOAT)</option>
+                          <option value="date">Date</option>
+                          <option value="boolean">Booléen (Oui/Non)</option>
+                          <option value="select">Liste de choix</option>
+                        </select>
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveColumn(index)}
-                        title="Supprimer cette colonne"
-                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveColumn(index)}
+                          title="Supprimer cette colonne"
+                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     {col.type === 'select' && (
