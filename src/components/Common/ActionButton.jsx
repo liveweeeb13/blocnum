@@ -229,19 +229,52 @@ export default function ActionButton({
     top: `${block.customY ?? 100}px`
   } : {};
 
+  const textPos = block.textPosition || 'above';
+  const isHorizontalText = textPos === 'left' || textPos === 'right';
+
+  const textElement = block.text ? (
+    <p className={`text-xs ${textPos === 'below' ? 'text-slate-500' : 'text-slate-700'} whitespace-pre-line leading-relaxed max-w-xl`}>
+      {block.text}
+    </p>
+  ) : null;
+
+  const buttonElement = (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={running}
+      className={`lowcode-action-button ${btnClasses}`}
+      style={inlineStyles}
+      tabIndex={isPreview ? -1 : 0}
+    >
+      <span>{block.label || 'Mon Bouton'}</span>
+      {renderButtonIcon(block, iconClass)}
+    </button>
+  );
+
   return (
     <div className={wrapperClass} style={customFloatingStyle}>
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={running}
-        className={`lowcode-action-button ${btnClasses}`}
-        style={inlineStyles}
-        tabIndex={isPreview ? -1 : 0}
+      <div
+        className={`inline-flex ${
+          isHorizontalText
+            ? 'flex-row items-center gap-3'
+            : `flex-col ${
+                block.align === 'center'
+                  ? 'items-center text-center'
+                  : block.align === 'right'
+                  ? 'items-end text-right'
+                  : 'items-start text-left'
+              }`
+        } ${block.widthMode === 'full' || block.align === 'full' ? 'w-full justify-between' : ''}`}
       >
-        <span>{block.label || 'Mon Bouton'}</span>
-        {renderButtonIcon(block, iconClass)}
-      </button>
+        {block.text && (textPos === 'above' || textPos === 'left') && (
+          isHorizontalText ? textElement : <div className="mb-1.5">{textElement}</div>
+        )}
+        {buttonElement}
+        {block.text && (textPos === 'below' || textPos === 'right') && (
+          isHorizontalText ? textElement : <div className="mt-1.5">{textElement}</div>
+        )}
+      </div>
     </div>
   );
 }

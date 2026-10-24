@@ -15,13 +15,60 @@ function sanitizeIdentifier(name) {
 }
 
 function findTableByReference(reference) {
-  const cleanName = sanitizeIdentifier(reference);
-  const byName = cleanName ? db.prepare('SELECT * FROM _system_tables WHERE name = ?').get(cleanName) : null;
-  if (byName) return byName;
-  if (/^\d+$/.test(String(reference))) {
-    return db.prepare('SELECT * FROM _system_tables WHERE id = ?').get(Number(reference));
+  if (!reference) return null;
+  const raw = String(reference).trim();
+  const cleanName = sanitizeIdentifier(raw);
+
+  // 1. By numeric ID
+  if (/^\d+$/.test(raw)) {
+    const byId = db.prepare('SELECT * FROM _system_tables WHERE id = ?').get(Number(raw));
+    if (byId) return byId;
   }
+
+  if (cleanName) {
+    // 2. Exact match on clean name
+    let byName = db.prepare('SELECT * FROM _system_tables WHERE name = ?').get(cleanName);
+    if (byName) return byName;
+
+    // 3. Try removing 'app_' prefix (ex: app_detes -> detes)
+    if (cleanName.startsWith('app_')) {
+      byName = db.prepare('SELECT * FROM _system_tables WHERE name = ?').get(cleanName.slice(4));
+      if (byName) return byName;
+    }
+
+    // 4. Try adding 'app_' prefix
+    byName = db.prepare('SELECT * FROM _system_tables WHERE name = ?').get(`app_${cleanName}`);
+    if (byName) return byName;
+
+    // 5. Match by label (case-insensitive)
+    const byLabel = db.prepare('SELECT * FROM _system_tables WHERE lower(label) = ?').get(raw.toLowerCase());
+    if (byLabel) return byLabel;
+  }
+
   return null;
+}
+
+// Helper to reliably count rows in SQLite regardless of whether the physical table has "app_" prefix or not
+function getSqliteTableRowCount(tableName) {
+  if (!tableName) return 0;
+  const raw = String(tableName).trim();
+  const stripped = raw.replace(/^app_/, '');
+  const candidates = [
+    `app_${stripped}`,
+    raw,
+    stripped,
+    `app_${raw}`
+  ];
+
+  for (const cand of candidates) {
+    try {
+      const res = db.prepare(`SELECT COUNT(*) as cnt FROM "${cand}"`).get();
+      if (res && typeof res.cnt === 'number') {
+        return res.cnt;
+      }
+    } catch (_) {}
+  }
+  return 0;
 }
 
 // Map logical type to SQLite type
@@ -46,6 +93,36 @@ function mapSqlType(type) {
 router.get('/', optionalAuth, (req, res) => {
   try {
     const tables = db.prepare('SELECT * FROM _system_tables ORDER BY name ASC').all();
+
+    // Auto-discover SQLite tables in database that might not yet be in _system_tables
+    try {
+      const existingNames = new Set(tables.map(t => t.name.toLowerCase()));
+      const rawSqliteTables = db.prepare(`
+        SELECT name FROM sqlite_master 
+        WHERE type='table' 
+        AND name NOT LIKE 'sqlite_%' 
+        AND name NOT LIKE '_system_%'
+      `).all();
+
+      for (const sq of rawSqliteTables) {
+        const rawName = sq.name;
+        const cleanName = rawName.startsWith('app_') ? rawName.slice(4) : rawName;
+        if (!existingNames.has(cleanName) && !existingNames.has(rawName)) {
+          const label = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+          const ins = db.prepare('INSERT INTO _system_tables (name, label, description) VALUES (?, ?, ?)')
+            .run(cleanName, label, 'Table existante');
+          tables.push({
+            id: ins.lastInsertRowid,
+            name: cleanName,
+            label,
+            description: 'Table existante'
+          });
+          existingNames.add(cleanName);
+          existingNames.add(rawName);
+        }
+      }
+    } catch (_) {}
+
     const columns = db.prepare('SELECT * FROM _system_columns ORDER BY id ASC').all();
 
     const result = tables.map(table => {
@@ -54,14 +131,7 @@ router.get('/', optionalAuth, (req, res) => {
         options: c.options ? JSON.parse(c.options) : []
       }));
 
-      // Count rows
-      let rowCount = 0;
-      try {
-        const countRes = db.prepare(`SELECT COUNT(*) as cnt FROM "app_${table.name}"`).get();
-        rowCount = countRes ? countRes.cnt : 0;
-      } catch (e) {
-        rowCount = 0;
-      }
+      const rowCount = getSqliteTableRowCount(table.name);
 
       return {
         ...table,
@@ -328,6 +398,17 @@ router.delete('/:id/columns/:columnId', requireAuth, requireAdmin, (req, res) =>
 // DATA CRUD FOR TABLES
 // ==========================================
 
+// GET /api/tables/:tableName/count - Get live row count
+router.get('/:tableName/count', optionalAuth, (req, res) => {
+  const table = findTableByReference(req.params.tableName);
+  const count = getSqliteTableRowCount(table ? table.name : req.params.tableName);
+  res.json({
+    table: table?.name || req.params.tableName,
+    count,
+    rowCount: count
+  });
+});
+
 // GET /api/tables/:tableName/data - Get all records
 router.get('/:tableName/data', optionalAuth, (req, res) => {
   const table = findTableByReference(req.params.tableName);
@@ -337,7 +418,13 @@ router.get('/:tableName/data', optionalAuth, (req, res) => {
   }
 
   try {
-    const rows = db.prepare(`SELECT * FROM "app_${table.name}" ORDER BY id DESC`).all();
+    let rows = [];
+    const targetTable = table.name.startsWith('app_') ? table.name : `app_${table.name}`;
+    try {
+      rows = db.prepare(`SELECT * FROM "${targetTable}" ORDER BY id DESC`).all();
+    } catch (_) {
+      rows = db.prepare(`SELECT * FROM "${table.name}" ORDER BY id DESC`).all();
+    }
     res.json({ rows, table });
   } catch (err) {
     res.status(500).json({ error: err.message });

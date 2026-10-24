@@ -1,37 +1,44 @@
 import React, { useState } from 'react';
 import { getAttachedButtons } from '../../utils/attachedButtons';
-import { 
-  Trash2, MousePointer, HelpCircle, Pin, Plus, 
+import { findParentContainer } from '../../utils/containerBlocks';
+import {
+  Trash2, MousePointer, HelpCircle, Pin, Plus,
   ArrowUp, ArrowDown, Move, Maximize2, Minimize2, CornerDownRight,
-  Sparkles, Layers, Sliders, MapPin, Zap, Settings, ShieldCheck
+  Sparkles, Layers, Sliders, MapPin, Zap, Settings, ShieldCheck, Eye
 } from 'lucide-react';
 
-export default function BlockSettings({ 
-  block, 
-  onChange, 
-  onDelete, 
-  tables = [], 
-  pages = [], 
+export default function BlockSettings({
+  block,
+  onChange,
+  onDelete,
+  tables = [],
+  pages = [],
   layout = [],
   onMoveUp,
   onMoveDown,
   onAttachButton,
   onDetachToStandalone,
-  onAttachStandaloneToBlock
+  onAttachStandaloneToBlock,
+  onAddChildBlock,
+  onSelectBlock,
+  onExtractChildBlock
 }) {
   const [btnTab, setBtnTab] = useState('style'); // 'style' | 'position' | 'action'
   const [blockTab, setBlockTab] = useState('props'); // 'props' | 'button'
   const [attachedButtonIndex, setAttachedButtonIndex] = useState(0);
   const [draggingAttachedButtonIndex, setDraggingAttachedButtonIndex] = useState(null);
 
+  const parentContainer = block ? findParentContainer(layout, block.id) : null;
+
   const getHumanBlockTypeName = (type) => {
     switch (type) {
-      case 'button': return 'Bouton interactif';
-      case 'header': return 'En-tête & Titre';
+      case 'button': return 'Bouton';
+      case 'header': return 'Texte';
       case 'table': return 'Tableau de données';
-      case 'form': return 'Formulaire de saisie';
-      case 'stats': return 'Compteur statistique';
-      case 'alert': return 'Note d\'information';
+      case 'form': return 'Formulaire';
+      case 'stats': return 'Compteur';
+      case 'alert': return 'Note';
+      case 'container': return 'Conteneur';
       default: return type;
     }
   };
@@ -118,8 +125,8 @@ export default function BlockSettings({
   const selectedTableObj = tables.find(t => t.name === block.tableName);
   const availableCols = selectedTableObj?.columns || [];
 
-  const currentVisible = block.visibleColumns !== undefined 
-    ? block.visibleColumns 
+  const currentVisible = block.visibleColumns !== undefined
+    ? block.visibleColumns
     : availableCols.map(c => c.name);
 
   const toggleColumn = (colName) => {
@@ -172,8 +179,35 @@ export default function BlockSettings({
       </div>
 
       <div className="mx-4 mt-3 rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2.5 text-[10px] leading-relaxed text-slate-600">
-        <p className="mt-1"><code className="text-indigo-700">$[username] $[role]</code></p>
-        <p className="mt-1 break-words font-mono text-[9px] text-slate-500">$[if[$[username]=="admin"]return["Bonjour l'admin"]else["Bonjour"]]</p>
+        <p className="font-semibold text-indigo-900">Variables & Compteurs disponibles :</p>
+        <p className="mt-1 flex flex-wrap gap-1.5">
+          <code className="text-indigo-700 bg-indigo-100/60 px-1 py-0.5 rounded font-mono">$[username]</code>
+          <code className="text-indigo-700 bg-indigo-100/60 px-1 py-0.5 rounded font-mono">$[role]</code>
+          <code className="text-indigo-700 bg-indigo-100/60 px-1 py-0.5 rounded font-mono">$[count[table]]</code>
+        </p>
+        <p className="mt-1.5 break-words font-mono text-[9px] text-slate-500">
+          Ex : <span className="text-slate-700">Total : $[count[detes]]</span> ou <span className="text-slate-700">$[count[app_detes]]</span>
+        </p>
+        {tables && tables.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-indigo-200/50">
+            <span className="font-semibold text-indigo-900">Vos tables détectées :</span>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {tables.map(t => (
+                <button
+                  key={t.id || t.name}
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(`$[count[${t.name}]]`);
+                  }}
+                  title="Cliquer pour copier le tag"
+                  className="text-indigo-700 bg-white/90 hover:bg-indigo-100/80 border border-indigo-200/80 px-1.5 py-0.5 rounded text-[9px] font-mono cursor-pointer transition-colors"
+                >
+                  $[count[{t.name}]] ({t.rowCount ?? 0})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Segmented Tabs */}
@@ -183,11 +217,10 @@ export default function BlockSettings({
             <button
               type="button"
               onClick={() => setBtnTab('style')}
-              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                btnTab === 'style'
+              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${btnTab === 'style'
                   ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                   : 'text-slate-500 hover:text-slate-900'
-              }`}
+                }`}
             >
               <Sliders className="w-3 h-3" />
               <span>Style</span>
@@ -195,11 +228,10 @@ export default function BlockSettings({
             <button
               type="button"
               onClick={() => setBtnTab('position')}
-              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                btnTab === 'position'
+              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${btnTab === 'position'
                   ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                   : 'text-slate-500 hover:text-slate-900'
-              }`}
+                }`}
             >
               <MapPin className="w-3 h-3" />
               <span>Position</span>
@@ -207,11 +239,10 @@ export default function BlockSettings({
             <button
               type="button"
               onClick={() => setBtnTab('action')}
-              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                btnTab === 'action'
+              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${btnTab === 'action'
                   ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                   : 'text-slate-500 hover:text-slate-900'
-              }`}
+                }`}
             >
               <Zap className="w-3 h-3" />
               <span>Action</span>
@@ -224,11 +255,10 @@ export default function BlockSettings({
             <button
               type="button"
               onClick={() => setBlockTab('props')}
-              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                blockTab === 'props'
+              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${blockTab === 'props'
                   ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                   : 'text-slate-500 hover:text-slate-900'
-              }`}
+                }`}
             >
               <Settings className="w-3 h-3" />
               <span>Propriétés</span>
@@ -236,11 +266,10 @@ export default function BlockSettings({
             <button
               type="button"
               onClick={() => setBlockTab('button')}
-              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                blockTab === 'button'
+              className={`py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${blockTab === 'button'
                   ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                   : 'text-slate-500 hover:text-slate-900'
-              }`}
+                }`}
             >
               <Pin className="w-3 h-3" />
               <span>Bouton {attachedButtons.length ? `• ${attachedButtons.length}` : ''}</span>
@@ -251,10 +280,25 @@ export default function BlockSettings({
 
       {/* Main Form Fields Container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+        {parentContainer && (
+          <div className="bg-indigo-50/80 border border-indigo-200/80 rounded-xl p-2.5 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1.5 text-indigo-950 font-medium truncate">
+              <span>📦</span>
+              <span className="truncate">Dans : <strong>{parentContainer.title || 'Conteneur'}</strong></span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSelectBlock && onSelectBlock(parentContainer.id)}
+              className="text-[11px] text-indigo-700 hover:underline font-semibold shrink-0 cursor-pointer ml-2"
+            >
+              Voir conteneur
+            </button>
+          </div>
+        )}
+
         <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <div>
             <h3 className="text-xs font-semibold text-slate-800">Apparence du composant</h3>
-            <p className="mt-0.5 text-[10px] text-slate-500">Couleurs et bordure du bloc entier.</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <ColorPickerField label="Couleur du texte" value={block.textColor || '#111827'} onChange={value => handleUpdate('textColor', value)} />
@@ -279,6 +323,12 @@ export default function BlockSettings({
           {(block.textColor || block.backgroundColor || block.borderEnabled || block.innerPadding !== undefined && block.innerPadding !== null) && <button type="button" onClick={() => onChange({ ...block, textColor: '', backgroundColor: '', borderEnabled: false, borderWidth: 1, borderRadius: 8, borderColor: '', innerPadding: null })} className="text-[10px] font-medium text-slate-500 underline hover:text-slate-800">Réinitialiser l’apparence</button>}
         </section>
 
+        {/* RÈGLE D'APPARITION (CONDITION DE VISIBILITÉ) */}
+        <VisibilityRuleEditor
+          value={block.visibilityRule || ''}
+          onChange={(newRule) => handleUpdate('visibilityRule', newRule)}
+        />
+
         {/* =========================================
             1. STANDALONE BUTTON SETTINGS
            ========================================= */}
@@ -298,6 +348,43 @@ export default function BlockSettings({
                   />
                 </div>
 
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">Texte d'accompagnement (optionnel)</label>
+                  <textarea
+                    rows={2}
+                    value={block.text || ''}
+                    onChange={(e) => handleUpdate('text', e.target.value)}
+                    placeholder="Ex: Description ou instructions au-dessus/en-dessous du bouton..."
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 text-xs font-medium resize-y"
+                  />
+                </div>
+
+                {block.text && (
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-700 font-medium">Position du texte</label>
+                    <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+                      {[
+                        { id: 'above', label: '↑ Au-dessus' },
+                        { id: 'below', label: '↓ En-dessous' },
+                        { id: 'left', label: '← À gauche' },
+                        { id: 'right', label: '→ À droite' },
+                      ].map(pos => (
+                        <button
+                          key={pos.id}
+                          type="button"
+                          onClick={() => handleUpdate('textPosition', pos.id)}
+                          className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${(block.textPosition || 'above') === pos.id
+                              ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                              : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                          {pos.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Size */}
                 <div className="space-y-1.5">
                   <label className="block text-slate-700 font-medium">Taille</label>
@@ -312,11 +399,10 @@ export default function BlockSettings({
                         key={s.id}
                         type="button"
                         onClick={() => handleUpdate('size', s.id)}
-                        className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                          (block.size || 'md') === s.id
+                        className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${(block.size || 'md') === s.id
                             ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                             : 'text-slate-500 hover:text-slate-900'
-                        }`}
+                          }`}
                       >
                         {s.label}
                       </button>
@@ -331,33 +417,30 @@ export default function BlockSettings({
                     <button
                       type="button"
                       onClick={() => handleUpdate('widthMode', 'auto')}
-                      className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                        (block.widthMode || 'auto') === 'auto'
+                      className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${(block.widthMode || 'auto') === 'auto'
                           ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                           : 'text-slate-500 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       Ajustée
                     </button>
                     <button
                       type="button"
                       onClick={() => handleUpdate('widthMode', 'full')}
-                      className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                        block.widthMode === 'full'
+                      className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${block.widthMode === 'full'
                           ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                           : 'text-slate-500 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       Pleine
                     </button>
                     <button
                       type="button"
                       onClick={() => handleUpdate('widthMode', 'custom')}
-                      className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                        block.widthMode === 'custom'
+                      className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${block.widthMode === 'custom'
                           ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                           : 'text-slate-500 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       Libre (px)
                     </button>
@@ -404,11 +487,10 @@ export default function BlockSettings({
                         key={r.id}
                         type="button"
                         onClick={() => handleUpdate('roundness', r.id)}
-                        className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                          (block.roundness || 'md') === r.id
+                        className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${(block.roundness || 'md') === r.id
                             ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                             : 'text-slate-500 hover:text-slate-900'
-                        }`}
+                          }`}
                       >
                         {r.label}
                       </button>
@@ -467,22 +549,20 @@ export default function BlockSettings({
                     <button
                       type="button"
                       onClick={() => handleUpdate('position', 'standard')}
-                      className={`py-1.5 text-center rounded-lg font-medium transition-all cursor-pointer ${
-                        (block.position || 'standard') === 'standard'
+                      className={`py-1.5 text-center rounded-lg font-medium transition-all cursor-pointer ${(block.position || 'standard') === 'standard'
                           ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                           : 'text-slate-500 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       Dans la page
                     </button>
                     <button
                       type="button"
                       onClick={() => handleUpdate('position', 'float-bottom-right')}
-                      className={`py-1.5 text-center rounded-lg font-medium transition-all cursor-pointer ${
-                        block.position && block.position.startsWith('float')
+                      className={`py-1.5 text-center rounded-lg font-medium transition-all cursor-pointer ${block.position && block.position.startsWith('float')
                           ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                           : 'text-slate-500 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       Flottant à l'écran
                     </button>
@@ -505,11 +585,10 @@ export default function BlockSettings({
                             key={a.id}
                             type="button"
                             onClick={() => handleUpdate('align', a.id)}
-                            className={`py-1 text-center rounded text-[10px] font-medium transition-all cursor-pointer ${
-                              (block.align || 'left') === a.id
+                            className={`py-1 text-center rounded text-[10px] font-medium transition-all cursor-pointer ${(block.align || 'left') === a.id
                                 ? 'bg-slate-900 text-white font-semibold'
                                 : 'text-slate-600 hover:text-slate-900'
-                            }`}
+                              }`}
                           >
                             {a.label}
                           </button>
@@ -593,11 +672,10 @@ export default function BlockSettings({
                               });
                             }}
                             title={pos.label}
-                            className={`h-10 flex flex-col items-center justify-center rounded-lg text-xs transition-all cursor-pointer ${
-                              isActive
+                            className={`h-10 flex flex-col items-center justify-center rounded-lg text-xs transition-all cursor-pointer ${isActive
                                 ? 'bg-indigo-600 text-white font-bold shadow-xs'
                                 : 'bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-100'
-                            }`}
+                              }`}
                           >
                             <span className="text-sm leading-none">{pos.icon}</span>
                             <span className="text-[9px] mt-0.5 truncate max-w-full px-1">
@@ -670,22 +748,20 @@ export default function BlockSettings({
                     <button
                       type="button"
                       onClick={() => handleUpdate('mode', 'direct')}
-                      className={`py-1.5 text-center rounded-lg font-medium transition-all cursor-pointer ${
-                        (block.mode || 'direct') === 'direct'
+                      className={`py-1.5 text-center rounded-lg font-medium transition-all cursor-pointer ${(block.mode || 'direct') === 'direct'
                           ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                           : 'text-slate-500 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       Action directe
                     </button>
                     <button
                       type="button"
                       onClick={() => handleUpdate('mode', 'conditional')}
-                      className={`py-1.5 text-center rounded-lg font-medium transition-all cursor-pointer ${
-                        block.mode === 'conditional'
+                      className={`py-1.5 text-center rounded-lg font-medium transition-all cursor-pointer ${block.mode === 'conditional'
                           ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                           : 'text-slate-500 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       Si ... Alors ...
                     </button>
@@ -743,14 +819,15 @@ export default function BlockSettings({
 
                 {block.type === 'header' && (
                   <div>
-                    <label className="block text-slate-700 font-medium mb-1">Sous-titre / Description</label>
+                    <label className="block text-slate-700 font-medium mb-1">Sous-titre / Paragraphe</label>
                     <textarea
-                      rows={2}
+                      rows={4}
                       value={block.subtitle || ''}
                       onChange={(e) => handleUpdate('subtitle', e.target.value)}
-                      className="w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 text-xs"
+                      placeholder="Texte du paragraphe (Appuyez sur Entrée pour sauter une ligne)..."
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 text-xs leading-relaxed"
                     />
-                  </div>
+                    </div>
                 )}
 
                 {(block.type === 'table' || block.type === 'form' || block.type === 'stats') && (
@@ -840,171 +917,267 @@ export default function BlockSettings({
 
                 {block.type === 'alert' && (
                   <div>
-                    <label className="block text-slate-700 font-medium mb-1">Message d'information</label>
+                    <label className="block text-slate-700 font-medium mb-1">Message d'information / Paragraphe</label>
                     <textarea
-                      rows={2}
+                      rows={3}
                       value={block.message || ''}
                       onChange={(e) => handleUpdate('message', e.target.value)}
-                      className="w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-900 text-xs"
+                      placeholder="Texte (Appuyez sur Entrée pour sauter une ligne)..."
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:border-slate-900 text-xs leading-relaxed"
                     />
-                  </div>
+                    </div>
                 )}
-              </div>
-            ) : (
-              /* TAB 2: ATTACHED BUTTON */
-              <div className="space-y-4 animate-fade-in">
-                {selectedButton ? (
-                  <div className="p-3.5 bg-indigo-50/40 rounded-xl border border-indigo-200/60 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-indigo-900 text-xs flex items-center gap-1.5">
-                        <Pin className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Bouton fixé sur ce composant</span>
-                      </span>
-                      <div className="flex items-center gap-2 text-[10px]">
-                        {onDetachToStandalone && (
-                          <button
-                            type="button"
-                            onClick={() => onDetachToStandalone(block.id, selectedButtonIndex)}
-                            className="text-indigo-600 hover:underline cursor-pointer flex items-center gap-0.5 font-medium"
-                          >
-                            <CornerDownRight className="w-2.5 h-2.5" />
-                            <span>Rendre autonome</span>
-                          </button>
-                        )}
+
+                {block.type === 'container' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-slate-700 font-medium mb-1">Nom du conteneur (repère)</label>
+                      <input
+                        type="text"
+                        value={block.title || ''}
+                        onChange={(e) => handleUpdate('title', e.target.value)}
+                        placeholder="Ex: Encadré coordonnées, Section profil..."
+                        className="w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 text-xs font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-700 font-medium">Disposition des blocs internes</label>
+                      <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
                         <button
                           type="button"
-                          onClick={removeAttachedButton}
-                          className="text-red-500 hover:underline cursor-pointer"
+                          onClick={() => handleUpdate('direction', 'vertical')}
+                          className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${(block.direction || 'vertical') === 'vertical'
+                              ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                              : 'text-slate-500 hover:text-slate-900'
+                            }`}
                         >
-                          Supprimer
+                          Vertical
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdate('direction', 'horizontal')}
+                          className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${block.direction === 'horizontal'
+                              ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                              : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                          Horizontal
                         </button>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {attachedButtons.map((button, index) => <button key={button.id || index} type="button" draggable onDragStart={() => setDraggingAttachedButtonIndex(index)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); reorderAttachedButton(index); }} onDragEnd={() => setDraggingAttachedButtonIndex(null)} onClick={() => setAttachedButtonIndex(index)} title="Glisser pour réordonner" className={`cursor-grab rounded-lg border px-2 py-1 text-[10px] font-medium active:cursor-grabbing ${index === selectedButtonIndex ? 'border-indigo-300 bg-white text-indigo-800' : 'border-indigo-100 text-indigo-600 hover:bg-white'} ${draggingAttachedButtonIndex === index ? 'opacity-40' : ''}`}>{button.label || `Bouton ${index + 1}`}</button>)}
-                      <button type="button" onClick={addAttachedButton} className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-indigo-700"><Plus className="h-3 w-3" />Ajouter</button>
-                    </div>
-                    <div>
-                      <label className="block text-slate-700 text-[11px] font-medium mb-1">Texte du bouton</label>
-                      <input
-                        type="text"
-                        value={selectedButton.label || ''}
-                        onChange={(e) => handleUpdateAttachedButton('label', e.target.value)}
-                        placeholder="Ex: Action"
-                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-medium"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-slate-700 text-[11px] font-medium mb-1">Emplacement</label>
-                        <select
-                          value={selectedButton.position || 'header-right'}
-                          onChange={(e) => handleUpdateAttachedButton('position', e.target.value)}
-                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-xs"
-                        >
-                          <option value="header-right">En-tête droite</option>
-                          <option value="header-left">En-tête gauche</option>
-                          <option value="header-center">En-tête centre</option>
-                          <option value="footer-right">Pied droite</option>
-                          <option value="footer-left">Pied gauche</option>
-                          <option value="footer-center">Pied centre</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-slate-700 text-[11px] font-medium mb-1">Style</label>
-                        <select
-                          value={selectedButton.variant || 'primary'}
-                          onChange={(e) => handleUpdateAttachedButton('variant', e.target.value)}
-                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-xs"
-                        >
-                          <option value="primary">Noir</option>
-                          <option value="secondary">Gris</option>
-                          <option value="outline">Contour</option>
-                          <option value="danger">Rouge</option>
-                          <option value="success">Vert</option>
-                          <option value="indigo">Bleu</option>
-                        </select>
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-700 font-medium">Espacement entre les blocs</label>
+                      <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-xl">
+                        {[
+                          { id: 'none', label: '0px' },
+                          { id: 'sm', label: '8px' },
+                          { id: 'md', label: '16px' },
+                          { id: 'lg', label: '24px' },
+                        ].map(g => (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => handleUpdate('gap', g.id)}
+                            className={`py-1 text-center rounded-lg text-[11px] font-medium transition-all cursor-pointer ${(block.gap || 'md') === g.id
+                                ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                                : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                          >
+                            {g.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
-                    <div className="space-y-3 border-t border-indigo-100 pt-3">
-                      <div className="space-y-1.5">
-                        <label className="block text-slate-700 text-[11px] font-medium">Taille</label>
-                        <div className="grid grid-cols-4 gap-1 rounded-lg bg-indigo-50 p-1">
-                          {[['sm', 'Petit'], ['md', 'Moyen'], ['lg', 'Grand'], ['xl', 'Max']].map(([value, label]) => <button key={value} type="button" onClick={() => handleUpdateAttachedButton('size', value)} className={`rounded-md py-1.5 text-[10px] font-medium ${ (selectedButton.size || 'md') === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800' }`}>{label}</button>)}
-                        </div>
-                      </div>
 
-                      <div className="space-y-1.5">
-                        <label className="block text-slate-700 text-[11px] font-medium">Largeur</label>
-                        <div className="grid grid-cols-3 gap-1 rounded-lg bg-indigo-50 p-1">
-                          {[['auto', 'Ajustée'], ['full', 'Pleine'], ['custom', 'Libre (px)']].map(([value, label]) => <button key={value} type="button" onClick={() => handleUpdateAttachedButton('widthMode', value)} className={`rounded-md py-1.5 text-[10px] font-medium ${(selectedButton.widthMode || 'auto') === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>)}
-                        </div>
-                        {selectedButton.widthMode === 'custom' && <div className="flex items-center gap-2"><input type="range" min={80} max={500} step={10} value={selectedButton.customWidth || 180} onChange={event => handleUpdateAttachedButton('customWidth', Number(event.target.value))} className="flex-1 accent-indigo-600" /><span className="w-12 text-right font-mono text-[10px] text-slate-600">{selectedButton.customWidth || 180}px</span></div>}
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between"><label className="block text-slate-700 text-[11px] font-medium">Marge extérieure</label><span className="font-mono text-[10px] text-slate-500">{selectedButton.outerMargin || 0}px</span></div>
-                        <input type="number" min={0} max={32} step={1} value={selectedButton.outerMargin ?? 0} onChange={event => handleUpdateAttachedButton('outerMargin', event.target.value === '' ? 0 : Math.max(0, Math.min(32, Number(event.target.value))))} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] focus:border-indigo-400 focus:outline-none" />
-                        <p className="text-[10px] text-slate-400">Espace autour du bouton, en pixels.</p>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="block text-slate-700 text-[11px] font-medium">Forme des coins</label>
-                        <div className="grid grid-cols-4 gap-1 rounded-lg bg-indigo-50 p-1">
-                          {[['none', 'Carré'], ['sm', 'Léger'], ['md', 'Arrondi'], ['full', 'Pilule']].map(([value, label]) => <button key={value} type="button" onClick={() => handleUpdateAttachedButton('roundness', value)} className={`rounded-md py-1.5 text-[10px] font-medium ${(selectedButton.roundness || 'md') === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>)}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="block text-slate-700 text-[11px] font-medium">Couleur
-                          <select value={selectedButton.variant || 'primary'} onChange={event => handleUpdateAttachedButton('variant', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px]">
-                            <option value="primary">Noir</option><option value="secondary">Gris</option><option value="outline">Blanc</option><option value="danger">Rouge</option><option value="success">Vert</option><option value="indigo">Bleu</option><option value="ghost">Transparent</option>
-                          </select>
-                        </label>
-                        <label className="block text-slate-700 text-[11px] font-medium">Icône
-                          <select value={selectedButton.icon || 'auto'} onChange={event => handleUpdateAttachedButton('icon', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px]">
-                            <option value="auto">Auto (selon action)</option><option value="arrow">Flèche</option><option value="external">Lien externe</option><option value="plus">Plus</option><option value="check">Coche</option><option value="zap">Éclair</option><option value="star">Étoile</option><option value="send">Envoi</option><option value="none">Sans icône</option>
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-indigo-100">
-                      <label className="block text-slate-700 text-[11px] font-medium mb-1">Action au clic</label>
-                      <ActionSelector
-                        action={selectedButton.action || { type: 'page', pageSlug: '' }}
-                        onChange={(newAction) => handleUpdateAttachedButton('action', newAction)}
-                        pages={pages}
-                      />
-                    </div>
                   </div>
-                ) : (
-                  <div className="text-center p-6 border-2 border-dashed border-slate-200 rounded-2xl">
-                    <Pin className="w-6 h-6 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-slate-700">Aucun bouton fixé sur ce composant</p>
-                    <p className="text-[11px] text-slate-400 mt-1 mb-3">
-                      Ajoutez un bouton qui restera toujours attaché à ce tableau ou formulaire.
-                    </p>
+            )}
+          </div>
+        ) : (
+        /* TAB 2: ATTACHED BUTTON */
+        <div className="space-y-4 animate-fade-in">
+          {selectedButton ? (
+            <div className="p-3.5 bg-indigo-50/40 rounded-xl border border-indigo-200/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-indigo-900 text-xs flex items-center gap-1.5">
+                  <Pin className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Bouton fixé sur ce composant</span>
+                </span>
+                <div className="flex items-center gap-2 text-[10px]">
+                  {onDetachToStandalone && (
                     <button
                       type="button"
-                      onClick={addAttachedButton}
-                      className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      onClick={() => onDetachToStandalone(block.id, selectedButtonIndex)}
+                      className="text-indigo-600 hover:underline cursor-pointer flex items-center gap-0.5 font-medium"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Fixer un bouton maintenant</span>
+                      <CornerDownRight className="w-2.5 h-2.5" />
+                      <span>Rendre autonome</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={removeAttachedButton}
+                    className="text-red-500 hover:underline cursor-pointer"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {attachedButtons.map((button, index) => <button key={button.id || index} type="button" draggable onDragStart={() => setDraggingAttachedButtonIndex(index)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); reorderAttachedButton(index); }} onDragEnd={() => setDraggingAttachedButtonIndex(null)} onClick={() => setAttachedButtonIndex(index)} title="Glisser pour réordonner" className={`cursor-grab rounded-lg border px-2 py-1 text-[10px] font-medium active:cursor-grabbing ${index === selectedButtonIndex ? 'border-indigo-300 bg-white text-indigo-800' : 'border-indigo-100 text-indigo-600 hover:bg-white'} ${draggingAttachedButtonIndex === index ? 'opacity-40' : ''}`}>{button.label || `Bouton ${index + 1}`}</button>)}
+                <button type="button" onClick={addAttachedButton} className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-indigo-700"><Plus className="h-3 w-3" />Ajouter</button>
+              </div>
+
+              {attachedButtons.length > 1 && (
+                <div className="space-y-1.5 rounded-lg border border-indigo-100 bg-indigo-50/50 p-2">
+                  <label className="block text-slate-700 text-[11px] font-medium">Disposition des boutons fixés</label>
+                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-indigo-100/60 p-1">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdate('attachedButtonsLayout', 'horizontal')}
+                      className={`rounded-md py-1 text-[10px] font-medium transition-all cursor-pointer ${(block.attachedButtonsLayout || 'horizontal') === 'horizontal'
+                          ? 'bg-white text-indigo-950 shadow-xs font-semibold'
+                          : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                      ↔ Côte à côte
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdate('attachedButtonsLayout', 'vertical')}
+                      className={`rounded-md py-1 text-[10px] font-medium transition-all cursor-pointer ${block.attachedButtonsLayout === 'vertical'
+                          ? 'bg-white text-indigo-950 shadow-xs font-semibold'
+                          : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                      ↕ L'un sous l'autre
                     </button>
                   </div>
-                )}
+                </div>
+              )}
+              <div>
+                <label className="block text-slate-700 text-[11px] font-medium mb-1">Texte du bouton</label>
+                <input
+                  type="text"
+                  value={selectedButton.label || ''}
+                  onChange={(e) => handleUpdateAttachedButton('label', e.target.value)}
+                  placeholder="Ex: Action"
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-medium"
+                />
               </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-slate-700 text-[11px] font-medium mb-1">Emplacement</label>
+                  <select
+                    value={selectedButton.position || 'header-right'}
+                    onChange={(e) => handleUpdateAttachedButton('position', e.target.value)}
+                    className="w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-xs"
+                  >
+                    <option value="header-right">En haut à droite</option>
+                    <option value="header-left">En haut à gauche</option>
+                    <option value="header-center">En haut au centre</option>
+                    <option value="footer-left">En dessous à gauche (sous le texte)</option>
+                    <option value="footer-right">En dessous à droite</option>
+                    <option value="footer-center">En dessous au centre</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 text-[11px] font-medium mb-1">Style</label>
+                  <select
+                    value={selectedButton.variant || 'primary'}
+                    onChange={(e) => handleUpdateAttachedButton('variant', e.target.value)}
+                    className="w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-xs"
+                  >
+                    <option value="primary">Noir</option>
+                    <option value="secondary">Gris</option>
+                    <option value="outline">Contour</option>
+                    <option value="danger">Rouge</option>
+                    <option value="success">Vert</option>
+                    <option value="indigo">Bleu</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-indigo-100 pt-3">
+                <div className="space-y-1.5">
+                  <label className="block text-slate-700 text-[11px] font-medium">Taille</label>
+                  <div className="grid grid-cols-4 gap-1 rounded-lg bg-indigo-50 p-1">
+                    {[['sm', 'Petit'], ['md', 'Moyen'], ['lg', 'Grand'], ['xl', 'Max']].map(([value, label]) => <button key={value} type="button" onClick={() => handleUpdateAttachedButton('size', value)} className={`rounded-md py-1.5 text-[10px] font-medium ${(selectedButton.size || 'md') === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>)}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-slate-700 text-[11px] font-medium">Largeur</label>
+                  <div className="grid grid-cols-3 gap-1 rounded-lg bg-indigo-50 p-1">
+                    {[['auto', 'Ajustée'], ['full', 'Pleine'], ['custom', 'Libre (px)']].map(([value, label]) => <button key={value} type="button" onClick={() => handleUpdateAttachedButton('widthMode', value)} className={`rounded-md py-1.5 text-[10px] font-medium ${(selectedButton.widthMode || 'auto') === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>)}
+                  </div>
+                  {selectedButton.widthMode === 'custom' && <div className="flex items-center gap-2"><input type="range" min={80} max={500} step={10} value={selectedButton.customWidth || 180} onChange={event => handleUpdateAttachedButton('customWidth', Number(event.target.value))} className="flex-1 accent-indigo-600" /><span className="w-12 text-right font-mono text-[10px] text-slate-600">{selectedButton.customWidth || 180}px</span></div>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between"><label className="block text-slate-700 text-[11px] font-medium">Marge extérieure</label><span className="font-mono text-[10px] text-slate-500">{selectedButton.outerMargin || 0}px</span></div>
+                  <input type="number" min={0} max={32} step={1} value={selectedButton.outerMargin ?? 0} onChange={event => handleUpdateAttachedButton('outerMargin', event.target.value === '' ? 0 : Math.max(0, Math.min(32, Number(event.target.value))))} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] focus:border-indigo-400 focus:outline-none" />
+                  <p className="text-[10px] text-slate-400">Espace autour du bouton, en pixels.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-slate-700 text-[11px] font-medium">Forme des coins</label>
+                  <div className="grid grid-cols-4 gap-1 rounded-lg bg-indigo-50 p-1">
+                    {[['none', 'Carré'], ['sm', 'Léger'], ['md', 'Arrondi'], ['full', 'Pilule']].map(([value, label]) => <button key={value} type="button" onClick={() => handleUpdateAttachedButton('roundness', value)} className={`rounded-md py-1.5 text-[10px] font-medium ${(selectedButton.roundness || 'md') === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>)}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-slate-700 text-[11px] font-medium">Couleur
+                    <select value={selectedButton.variant || 'primary'} onChange={event => handleUpdateAttachedButton('variant', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px]">
+                      <option value="primary">Noir</option><option value="secondary">Gris</option><option value="outline">Blanc</option><option value="danger">Rouge</option><option value="success">Vert</option><option value="indigo">Bleu</option><option value="ghost">Transparent</option>
+                    </select>
+                  </label>
+                  <label className="block text-slate-700 text-[11px] font-medium">Icône
+                    <select value={selectedButton.icon || 'auto'} onChange={event => handleUpdateAttachedButton('icon', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px]">
+                      <option value="auto">Auto (selon action)</option><option value="arrow">Flèche</option><option value="external">Lien externe</option><option value="plus">Plus</option><option value="check">Coche</option><option value="zap">Éclair</option><option value="star">Étoile</option><option value="send">Envoi</option><option value="none">Sans icône</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-indigo-100">
+                <label className="block text-slate-700 text-[11px] font-medium mb-1">Action au clic</label>
+                <ActionSelector
+                  action={selectedButton.action || { type: 'page', pageSlug: '' }}
+                  onChange={(newAction) => handleUpdateAttachedButton('action', newAction)}
+                  pages={pages}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="text-center p-6 border-2 border-dashed border-slate-200 rounded-2xl">
+              <Pin className="w-6 h-6 text-slate-300 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-700">Aucun bouton fixé sur ce composant</p>
+              <p className="text-[11px] text-slate-400 mt-1 mb-3">
+                Ajoutez un bouton qui restera toujours attaché à ce tableau ou formulaire.
+              </p>
+              <button
+                type="button"
+                onClick={addAttachedButton}
+                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Fixer un bouton maintenant</span>
+              </button>
+            </div>
+          )}
+        </div>
             )}
-          </>
+      </>
         )}
-      </div>
-    </aside>
+    </div>
+    </aside >
   );
 }
 
@@ -1268,5 +1441,225 @@ function ConditionalActionEditor({
         </div>
       )}
     </div>
+  );
+}
+
+function parseVisibilityRule(rule) {
+  const trimmed = (rule || '').trim();
+  if (!trimmed) {
+    return { type: 'always', operator: '==', value: '' };
+  }
+
+  const roleMatch = /^role\s*(==|!=)\s*(.+)$/i.exec(trimmed);
+  if (roleMatch) {
+    return {
+      type: 'role',
+      operator: roleMatch[1],
+      value: roleMatch[2].trim().replace(/^['"]|['"]$/g, ''),
+    };
+  }
+
+  const pseudoMatch = /^(pseudo|username)\s*(==|!=)\s*(.+)$/i.exec(trimmed);
+  if (pseudoMatch) {
+    return {
+      type: 'pseudo',
+      operator: pseudoMatch[2],
+      value: pseudoMatch[3].trim().replace(/^['"]|['"]$/g, ''),
+    };
+  }
+
+  return { type: 'always', operator: '==', value: '' };
+}
+
+function VisibilityRuleEditor({ value, onChange }) {
+  const parsed = parseVisibilityRule(value);
+  const [ruleType, setRuleType] = useState(parsed.type);
+  const [operator, setOperator] = useState(parsed.operator || '==');
+  const [targetVal, setTargetVal] = useState(parsed.value || '');
+
+  const lastValueRef = React.useRef(value);
+  React.useEffect(() => {
+    if (value !== lastValueRef.current) {
+      lastValueRef.current = value;
+      const nextParsed = parseVisibilityRule(value);
+      setRuleType(nextParsed.type);
+      setOperator(nextParsed.operator || '==');
+      setTargetVal(nextParsed.value || '');
+    }
+  }, [value]);
+
+  const emitRule = (type, op, val) => {
+    if (type === 'always') {
+      onChange('');
+    } else if (type === 'role') {
+      const v = (val || '').trim();
+      onChange(v ? `role ${op} ${v}` : '');
+    } else if (type === 'pseudo') {
+      const v = (val || '').trim();
+      onChange(v ? `pseudo ${op} ${v}` : '');
+    }
+  };
+
+  const handleTypeChange = (newType) => {
+    setRuleType(newType);
+    let defaultVal = targetVal;
+    let defaultOp = operator;
+    if ((newType === 'role' || newType === 'pseudo') && !targetVal) {
+      defaultVal = 'admin';
+      setTargetVal('admin');
+    }
+    emitRule(newType, defaultOp, defaultVal);
+  };
+
+  const handleOpChange = (newOp) => {
+    setOperator(newOp);
+    emitRule(ruleType, newOp, targetVal);
+  };
+
+  const handleValChange = (newVal) => {
+    setTargetVal(newVal);
+    emitRule(ruleType, operator, newVal);
+  };
+
+  const handleClear = () => {
+    setRuleType('always');
+    setTargetVal('');
+    onChange('');
+  };
+
+  const hasActiveRule = Boolean(value && value.trim());
+
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+            <Eye className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Règle d'apparition</span>
+          </h3>
+        </div>
+        {hasActiveRule ? (
+          <span className="text-[9px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+            Active
+          </span>
+        ) : (
+          <span className="text-[9px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+            Toujours visible
+          </span>
+        )}
+      </div>
+
+      {/* Select principal */}
+      <div>
+        <label className="block text-[11px] font-medium text-slate-700 mb-1">
+          Afficher si :
+        </label>
+        <select
+          value={ruleType}
+          onChange={(e) => handleTypeChange(e.target.value)}
+          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+        >
+          <option value="always">Toujours afficher</option>
+          <option value="role">Si rôle...</option>
+          <option value="pseudo">Si pseudo...</option>
+        </select>
+      </div>
+
+      {/* Configuration détaillée selon le type sélectionné */}
+      {ruleType === 'role' && (
+        <div className="space-y-2 pt-1 border-t border-slate-200/60 animate-fade-in">
+          <div className="grid grid-cols-5 gap-1.5">
+            <div className="col-span-2">
+              <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Opérateur</label>
+              <select
+                value={operator}
+                onChange={(e) => handleOpChange(e.target.value)}
+                className="w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-xs cursor-pointer"
+              >
+                <option value="==">est égal à (==)</option>
+                <option value="!=">est différent de (!=)</option>
+              </select>
+            </div>
+            <div className="col-span-3">
+              <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Rôle</label>
+              <input
+                type="text"
+                value={targetVal}
+                onChange={(e) => handleValChange(e.target.value)}
+                placeholder="Ex: admin"
+                className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+            <span className="text-[10px] text-slate-400 mr-0.5">Suggestions :</span>
+            {[
+              { label: 'admin', val: 'admin', op: '==' },
+              { label: 'connecté (non visiteur)', val: 'visiteur', op: '!=' },
+              { label: 'visiteur', val: 'visiteur', op: '==' },
+              { label: 'user', val: 'user', op: '==' },
+            ].map(item => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  setOperator(item.op);
+                  setTargetVal(item.val);
+                  emitRule('role', item.op, item.val);
+                }}
+                className={`px-2 py-0.5 text-[10px] rounded-md border transition-colors cursor-pointer font-mono ${targetVal.toLowerCase() === item.val.toLowerCase() && operator === item.op
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold'
+                    : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'
+                  }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {ruleType === 'pseudo' && (
+        <div className="space-y-2 pt-1 border-t border-slate-200/60 animate-fade-in">
+          <div className="grid grid-cols-5 gap-1.5">
+            <div className="col-span-2">
+              <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Opérateur</label>
+              <select
+                value={operator}
+                onChange={(e) => handleOpChange(e.target.value)}
+                className="w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-xs cursor-pointer"
+              >
+                <option value="==">est égal à (==)</option>
+                <option value="!=">est différent de (!=)</option>
+              </select>
+            </div>
+            <div className="col-span-3">
+              <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Pseudo / Nom</label>
+              <input
+                type="text"
+                value={targetVal}
+                onChange={(e) => handleValChange(e.target.value)}
+                placeholder="Ex: admin, jean..."
+                className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Règle générée en bas avec bouton effacer */}
+      {hasActiveRule && (
+        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[10px]">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="text-red-500 hover:text-red-700 hover:underline shrink-0 font-medium cursor-pointer"
+          >
+            Effacer
+          </button>
+        </div>
+      )}
+    </section>
   );
 }

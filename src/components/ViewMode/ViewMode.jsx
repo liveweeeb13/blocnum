@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../api';
 import { useAuth } from '../../context/AuthContext';
-import { resolveTemplateObject } from '../../utils/templateVariables';
+import { resolveTemplateObject, evaluateVisibilityCondition } from '../../utils/templateVariables';
 import { getAttachedButtons } from '../../utils/attachedButtons';
 import { getBlockAppearanceClassName, getBlockAppearanceStyle } from '../../utils/blockAppearance';
 import { runButtonAction } from '../../utils/actionRunner';
@@ -23,6 +23,7 @@ export default function ViewMode({ targetSlug, onEditPage }) {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
   const [tablesMeta, setTablesMeta] = useState({});
+  const [tableCounts, setTableCounts] = useState({});
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const showToast = (msg) => {
@@ -40,18 +41,23 @@ export default function ViewMode({ targetSlug, onEditPage }) {
         }
       })
       .catch(console.error);
+  }, []);
 
-    // Fetch tables metadata (to know columns for forms and tables)
+  // Fetch tables metadata and row counts (for dynamic $[count[table]] variables)
+  useEffect(() => {
     apiRequest('/tables')
       .then(res => {
         const metaMap = {};
+        const countMap = {};
         (res.tables || []).forEach(t => {
           metaMap[t.name] = t;
+          countMap[t.name] = t.rowCount ?? 0;
         });
         setTablesMeta(metaMap);
+        setTableCounts(res.tables || countMap);
       })
       .catch(console.error);
-  }, []);
+  }, [refreshTrigger]);
 
   // Update slug if prop changed
   useEffect(() => {
@@ -182,21 +188,26 @@ export default function ViewMode({ targetSlug, onEditPage }) {
         ) : (
           <div className="space-y-6">
             {pageData.layout && pageData.layout.length > 0 ? (
-              pageData.layout.map(sourceBlock => {
-                const block = resolveTemplateObject(sourceBlock, user);
-                return (
-                <div key={block.id} className={getBlockAppearanceClassName(block)} style={getBlockAppearanceStyle(block)} data-block-type={block.type}>
-                  <RenderLiveBlock
-                    block={block}
-                    tableMeta={tablesMeta[block.tableName]}
-                    refreshTrigger={refreshTrigger}
-                    onDataChanged={handleDataChanged}
-                    onNavigatePage={(slug) => setSelectedSlug(slug)}
-                    showToast={showToast}
-                  />
-                </div>
-                );
-              })
+              pageData.layout
+                .filter(sourceBlock => evaluateVisibilityCondition(sourceBlock.visibilityRule, user, tableCounts))
+                .map(sourceBlock => {
+                  const block = resolveTemplateObject(sourceBlock, user, tableCounts);
+                  return (
+                  <div key={block.id} className={getBlockAppearanceClassName(block)} style={getBlockAppearanceStyle(block)} data-block-type={block.type}>
+                    <RenderLiveBlock
+                      block={block}
+                      tableMeta={tablesMeta[block.tableName]}
+                      refreshTrigger={refreshTrigger}
+                      onDataChanged={handleDataChanged}
+                      onNavigatePage={(slug) => setSelectedSlug(slug)}
+                      showToast={showToast}
+                      tablesMeta={tablesMeta}
+                      user={user}
+                      tableCounts={tableCounts}
+                    />
+                  </div>
+                  );
+                })
             ) : (
               <div className="bg-white p-12 text-center rounded-2xl border border-dashed border-slate-200 shadow-xs max-w-lg mx-auto">
                 <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -228,7 +239,81 @@ export default function ViewMode({ targetSlug, onEditPage }) {
 // LIVE BLOCK RENDERERS
 // ==========================================
 
-function RenderLiveBlock({ block, tableMeta, refreshTrigger, onDataChanged, onNavigatePage, showToast }) {
+function LiveContainerBlock({ block, tableMeta, refreshTrigger, onDataChanged, onNavigatePage, showToast, tablesMeta, user, tableCounts }) {
+  const childBlocks = Array.isArray(block.blocks) ? block.blocks : [];
+  const visibleChildBlocks = childBlocks.filter(sourceChild => evaluateVisibilityCondition(sourceChild.visibilityRule, user, tableCounts));
+  const isHorizontal = block.direction === 'horizontal';
+  const gapClass = block.gap === 'none' ? 'gap-0' :
+                   block.gap === 'sm' ? 'gap-2' :
+                   block.gap === 'lg' ? 'gap-6' :
+                   block.gap === 'xl' ? 'gap-8' : 'gap-4';
+
+  const containerStyle = {
+    borderColor: block.borderEnabled !== false ? (block.borderColor || '#cbd5e1') : 'transparent',
+    borderWidth: block.borderEnabled !== false ? `${block.borderWidth || 1}px` : '0px',
+    borderStyle: block.borderEnabled !== false ? 'solid' : 'none',
+    borderRadius: `${block.borderRadius ?? 16}px`,
+    backgroundColor: block.backgroundColor || '#ffffff',
+    padding: block.innerPadding !== undefined && block.innerPadding !== null ? `${block.innerPadding}px` : '20px',
+    color: block.textColor || undefined,
+  };
+
+  return (
+    <div
+      className={`w-full transition-all flex ${isHorizontal ? 'flex-row flex-wrap items-stretch' : 'flex-col'} ${gapClass} shadow-2xs`}
+      style={containerStyle}
+    >
+      {visibleChildBlocks.length === 0 ? (
+        childBlocks.length === 0 ? (
+          <div className="py-4 text-center text-xs text-gray-400 w-full italic">
+            Conteneur vide
+          </div>
+        ) : null
+      ) : (
+        visibleChildBlocks.map(sourceChild => {
+          const child = user ? resolveTemplateObject(sourceChild, user, tableCounts) : sourceChild;
+          return (
+            <div
+              key={child.id}
+              className={`w-full ${isHorizontal ? 'flex-1 min-w-[260px]' : ''} ${getBlockAppearanceClassName(child)}`}
+              style={getBlockAppearanceStyle(child)}
+              data-block-type={child.type}
+            >
+              <RenderLiveBlock
+                block={child}
+                tableMeta={tablesMeta ? tablesMeta[child.tableName] : tableMeta}
+                refreshTrigger={refreshTrigger}
+                onDataChanged={onDataChanged}
+                onNavigatePage={onNavigatePage}
+                showToast={showToast}
+                tablesMeta={tablesMeta}
+                user={user}
+                tableCounts={tableCounts}
+              />
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function RenderLiveBlock({ block, tableMeta, refreshTrigger, onDataChanged, onNavigatePage, showToast, tablesMeta, user, tableCounts }) {
+  if (block.type === 'container') {
+    return (
+      <LiveContainerBlock
+        block={block}
+        tableMeta={tableMeta}
+        refreshTrigger={refreshTrigger}
+        onDataChanged={onDataChanged}
+        onNavigatePage={onNavigatePage}
+        showToast={showToast}
+        tablesMeta={tablesMeta}
+        user={user}
+        tableCounts={tableCounts}
+      />
+    );
+  }
   if (block.type === 'button') {
     return (
       <LiveButtonBlock
@@ -247,11 +332,11 @@ function RenderLiveBlock({ block, tableMeta, refreshTrigger, onDataChanged, onNa
           <div className="flex items-center gap-3">
             <AttachedButtonGroup block={block} placement="left" onNavigatePage={onNavigatePage} onDataChanged={onDataChanged} showToast={showToast} />
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight whitespace-pre-line">
                 {block.title}
               </h1>
               {block.subtitle && (
-                <p className="text-gray-500 text-xs mt-1">{block.subtitle}</p>
+                <p className="text-gray-500 text-xs mt-1 whitespace-pre-line leading-relaxed">{block.subtitle}</p>
               )}
             </div>
           </div>
@@ -266,8 +351,8 @@ function RenderLiveBlock({ block, tableMeta, refreshTrigger, onDataChanged, onNa
     return (
       <div className="p-3.5 rounded-lg border border-gray-200 bg-white text-gray-800 text-xs shadow-2xs flex items-center justify-between gap-3">
         <div>
-          {block.title && <p className="font-semibold text-gray-900 mb-0.5">{block.title}</p>}
-          <p className="text-gray-600">{block.message}</p>
+          {block.title && <p className="font-semibold text-gray-900 mb-0.5 whitespace-pre-line">{block.title}</p>}
+          <p className="text-gray-600 whitespace-pre-line leading-relaxed">{block.message}</p>
         </div>
         <AttachedButtonGroup block={block} onNavigatePage={onNavigatePage} onDataChanged={onDataChanged} showToast={showToast} />
       </div>
@@ -337,12 +422,19 @@ function AttachedButtonGroup({ block, placement = 'all', ...props }) {
     return true;
   });
   if (!buttons.length) return null;
+  const isVertical = block.attachedButtonsLayout === 'vertical';
   const items = buttons.map((button, index) => <LiveButtonBlock key={button.id || index} block={button} {...props} isAttached={true} />);
   if (placement === 'footer') {
     const position = buttons[0].position;
-    return <div className={`pt-1 flex ${position === 'footer-center' ? 'justify-center' : position === 'footer-left' ? 'justify-start' : 'justify-end'}`}>{items}</div>;
+    const justifyClass = position === 'footer-center'
+      ? (isVertical ? 'items-center' : 'justify-center')
+      : position === 'footer-left'
+      ? (isVertical ? 'items-start' : 'justify-start')
+      : (isVertical ? 'items-end' : 'justify-end');
+    return <div className={`pt-2 flex ${isVertical ? 'flex-col' : 'flex-row items-center flex-wrap'} ${justifyClass} gap-2`}>{items}</div>;
   }
-  return <div className="flex items-center gap-2">{items}</div>;
+  const alignClass = placement === 'left' ? 'items-start' : 'items-end';
+  return <div className={`flex ${isVertical ? `flex-col ${alignClass}` : 'flex-row items-center flex-wrap'} gap-2`}>{items}</div>;
 }
 
 // 1. LIVE STATS COMPONENT

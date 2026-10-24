@@ -76,9 +76,11 @@ L'interface est **directement branchée sur la base** : dès qu'un utilisateur r
 ### 3. Variables & Conditions
 Les titres et textes acceptent les balises :
 * **Variables utilisateur** : `$[username]`, `$[role]`.
+* **Compteurs statistiques dynamiques** : `$[count[nom_table]]` (ex: `$[count[clients]]` affiche le nombre de lignes de la table `clients`, ou `$[count[table]]` pour la table liée au bloc).
 * **Conditions inline** :
   ```text
   $[if[$[username] == "admin"]return["Espace Administrateur"]else["Bienvenue $[username]"]]
+  $[if[$[count[clients]] == "0"]return["Aucun client enregistré"]else["$[count[clients]] clients en base"]]
   ```
 
 ### 4. Sécurité, Comptes & Droits d'Accès

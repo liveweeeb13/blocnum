@@ -1,11 +1,12 @@
 import React from 'react';
 import { 
   ChevronUp, ChevronDown, Trash2, GripVertical, 
-  ExternalLink, ArrowRight, MousePointer, HelpCircle, Pin
+  ExternalLink, ArrowRight, MousePointer, HelpCircle, Pin, CornerUpLeft
 } from 'lucide-react';
 import ActionButton from '../Common/ActionButton';
 import { getAttachedButtons } from '../../utils/attachedButtons';
 import { getBlockAppearanceClassName, getBlockAppearanceStyle } from '../../utils/blockAppearance';
+import { resolveTemplateObject } from '../../utils/templateVariables';
 
 function AttachedButtonSet({ block, placement = 'all' }) {
   const buttons = getAttachedButtons(block).filter(button => {
@@ -15,13 +16,29 @@ function AttachedButtonSet({ block, placement = 'all' }) {
     return true;
   });
   if (!buttons.length) return null;
+  const isVertical = block.attachedButtonsLayout === 'vertical';
+
   if (placement === 'footer') {
     const position = buttons[0].position;
-    return <div className={`pt-2 flex ${position === 'footer-center' ? 'justify-center' : position === 'footer-left' ? 'justify-start' : 'justify-end'}`}>
-      {buttons.map((button, index) => <ActionButton key={button.id || index} block={button} isPreview={true} isAttached={true} />)}
-    </div>;
+    const justifyClass = position === 'footer-center'
+      ? (isVertical ? 'items-center' : 'justify-center')
+      : position === 'footer-left'
+      ? (isVertical ? 'items-start' : 'justify-start')
+      : (isVertical ? 'items-end' : 'justify-end');
+
+    return (
+      <div className={`pt-2 flex ${isVertical ? 'flex-col' : 'flex-row items-center flex-wrap'} ${justifyClass} gap-2`}>
+        {buttons.map((button, index) => <ActionButton key={button.id || index} block={button} isPreview={true} isAttached={true} />)}
+      </div>
+    );
   }
-  return <div className="flex items-center gap-2">{buttons.map((button, index) => <ActionButton key={button.id || index} block={button} isPreview={true} isAttached={true} />)}</div>;
+
+  const alignClass = placement === 'left' ? 'items-start' : 'items-end';
+  return (
+    <div className={`flex ${isVertical ? `flex-col ${alignClass}` : 'flex-row items-center flex-wrap'} gap-2`}>
+      {buttons.map((button, index) => <ActionButton key={button.id || index} block={button} isPreview={true} isAttached={true} />)}
+    </div>
+  );
 }
 
 class BlockErrorBoundary extends React.Component {
@@ -83,18 +100,30 @@ function CanvasBlockContent({
   // Dropping on this block
   isDragOverBlock,
   onDragOverBlock,
-  onDropOnBlock
+  onDropOnBlock,
+  // Container props
+  onAddChildBlock,
+  onSelectChildBlock,
+  onMoveChildBlock,
+  onDeleteChildBlock,
+  onExtractChildBlock,
+  selectedBlockId,
 }) {
   const connectedTable = tables.find(t => t.name === block.tableName);
 
+  const previewBlock = React.useMemo(() => {
+    return resolveTemplateObject(block, { tables, tableName: block.tableName }) || block;
+  }, [block, tables]);
+
   const getHumanTypeName = (type) => {
     switch (type) {
-      case 'header': return 'En-tête & Titre';
-      case 'table': return 'Tableau de données';
-      case 'form': return 'Formulaire de saisie';
-      case 'stats': return 'Compteur statistique';
-      case 'alert': return 'Note d\'information';
       case 'button': return 'Bouton';
+      case 'header': return 'Texte';
+      case 'table': return 'Tableau de données';
+      case 'form': return 'Formulaire';
+      case 'stats': return 'Compteur';
+      case 'alert': return 'Note';
+      case 'container': return 'Conteneur';
       default: return type;
     }
   };
@@ -127,117 +156,18 @@ function CanvasBlockContent({
   };
 
   // ========================================================
-  // 1. STANDALONE BUTTON -> COMPACT, NATIVE (NOT A GIANT CARD!)
+  // ALL BLOCKS (BUTTON, HEADER, TABLE, FORM, STATS, ALERT, CONTAINER)
   // ========================================================
-  if (block.type === 'button') {
-    return (
-      <div
-        draggable
-        onDragStart={(e) => {
-          try {
-            e.dataTransfer.setData('text/plain', String(index));
-            e.dataTransfer.setData('canvasIndex', String(index));
-            e.dataTransfer.effectAllowed = 'move';
-          } catch (_) {}
-          onDragStart && onDragStart(e, index);
-        }}
-        onDragEnd={onDragEnd}
-        onDragOver={onDragOverBlock}
-        onDrop={onDropOnBlock}
-        onClick={onSelect}
-        className={`relative my-2.5 py-2 px-2.5 group transition-all cursor-grab active:cursor-grabbing rounded-xl border border-transparent ${
-          isDragging ? 'opacity-30' : ''
-        } ${
-          isSelected 
-            ? 'border-indigo-400/60 ring-2 ring-indigo-500/20 bg-indigo-50/30 shadow-2xs' 
-            : 'hover:bg-slate-100 hover:border-slate-200/80'
-        }`}
-      >
-        {/* Floating Mini Action Toolbar on Hover or Selection */}
-        <div className={`absolute -top-8 left-2 z-30 transition-all duration-150 flex items-center gap-2 bg-slate-900 text-white px-2.5 py-1 rounded-lg text-[10px] shadow-md border border-slate-700/50 pointer-events-auto ${
-          isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100'
-        }`}>
-          {/* Drag Handle */}
-          <div 
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation();
-              try {
-                e.dataTransfer.setData('text/plain', String(index));
-                e.dataTransfer.setData('canvasIndex', String(index));
-                e.dataTransfer.effectAllowed = 'move';
-              } catch (_) {}
-              onDragStart && onDragStart(e, index);
-            }}
-            className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-white flex items-center gap-1 font-medium select-none"
-            title="Glisser-déposer pour déplacer le bouton"
-          >
-            <GripVertical className="w-3 h-3 text-slate-400" />
-            <span className="text-[10px]">Déplacer</span>
-          </div>
+  const isContainer = block.type === 'container';
 
-          <div className="h-3 w-px bg-slate-700" />
+  const containerCardStyle = isContainer ? {
+    borderColor: block.borderEnabled !== false ? (block.borderColor || '#cbd5e1') : '#e2e8f0',
+    borderWidth: block.borderEnabled !== false ? `${block.borderWidth || 1}px` : '1px',
+    borderStyle: block.borderEnabled !== false ? 'solid' : 'dashed',
+    borderRadius: `${block.borderRadius ?? 16}px`,
+    backgroundColor: block.backgroundColor || '#ffffff',
+  } : {};
 
-          {/* Move Up/Down */}
-          <button
-            type="button"
-            disabled={isFirst}
-            onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
-            className="text-slate-300 hover:text-white disabled:opacity-25 cursor-pointer p-0.5 rounded hover:bg-slate-800"
-            title="Monter"
-          >
-            <ChevronUp className="w-3 h-3" />
-          </button>
-          <button
-            type="button"
-            disabled={isLast}
-            onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
-            className="text-slate-300 hover:text-white disabled:opacity-25 cursor-pointer p-0.5 rounded hover:bg-slate-800"
-            title="Descendre"
-          >
-            <ChevronDown className="w-3 h-3" />
-          </button>
-
-          <div className="h-3 w-px bg-slate-700" />
-
-          {/* Action indicator */}
-          <span className="text-indigo-300 font-mono text-[9px] max-w-[140px] truncate">
-            {block.mode === 'conditional'
-              ? 'Si ... Alors'
-              : (block.action?.type === 'page' ? `/${block.action?.pageSlug || ''}` : block.action?.type || 'action')}
-          </span>
-
-          <div className="h-3 w-px bg-slate-700" />
-
-          {/* Delete */}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete(block.id); }}
-            className="text-red-400 hover:text-red-300 cursor-pointer p-0.5 rounded hover:bg-slate-800"
-            title="Supprimer ce bouton"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-
-        {/* The Button Itself */}
-        <div className={`flex ${getButtonAlignClass(block)}`}>
-          <div className="inline-block relative">
-            <ActionButton block={block} isPreview={true} />
-            {block.position && block.position.startsWith('float') && (
-              <span className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shadow-2xs">
-                📍 {getFloatingPositionName(block.position)}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ========================================================
-  // 2. CONTENT BLOCKS (HEADER, TABLE, FORM, STATS, ALERT)
-  // ========================================================
   return (
     <div
       draggable
@@ -245,15 +175,23 @@ function CanvasBlockContent({
       onDragEnd={onDragEnd}
       onDragOver={onDragOverBlock}
       onDrop={onDropOnBlock}
-      onClick={onSelect}
-      className={`relative bg-white rounded-xl border transition-all cursor-pointer overflow-hidden ${
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect && onSelect(e);
+      }}
+      style={containerCardStyle}
+      className={`relative transition-all cursor-pointer overflow-hidden ${
         isDragging ? 'opacity-30 border-dashed border-gray-400' : ''
       } ${
         isDragOverBlock
           ? 'ring-4 ring-indigo-500/30 border-indigo-600 bg-indigo-50/20 shadow-md'
           : isSelected
-          ? 'border-gray-900 ring-2 ring-gray-900/10 shadow-xs'
-          : 'border-gray-200 hover:border-gray-300'
+          ? 'ring-2 ring-indigo-600/40 shadow-xs'
+          : 'hover:border-gray-300'
+      } ${
+        !isContainer
+          ? `bg-white rounded-xl border ${isSelected ? 'border-gray-900 ring-2 ring-gray-900/10' : 'border-gray-200'}`
+          : ''
       }`}
     >
       {/* Drop on Block Overlay Banner */}
@@ -273,12 +211,20 @@ function CanvasBlockContent({
             title="Glisser-déposer pour réordonner"
           >
             <GripVertical className="w-3.5 h-3.5" />
-            <span className="text-[10px] text-gray-400 font-medium">Glisser</span>
           </div>
 
           <span className="font-semibold text-slate-800">
             {getHumanTypeName(block.type)}
           </span>
+          
+          {block.type === 'button' && (
+            <span className="text-[10px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/80 font-mono font-medium">
+              {block.mode === 'conditional'
+                ? 'Si ... Alors'
+                : (block.action?.type === 'page' ? `/${block.action?.pageSlug || ''}` : block.action?.type || 'action')}
+            </span>
+          )}
+          
           {block.tableName && (
             <span className="text-[10px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/80 font-medium">
               Table : {connectedTable?.label || block.tableName}
@@ -289,10 +235,28 @@ function CanvasBlockContent({
               + {getAttachedButtons(block).length} bouton(s) fixé(s)
             </span>
           )}
+          {block.visibilityRule && (
+            <span 
+              className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 font-medium flex items-center gap-1"
+              title={`Affiché uniquement si : ${block.visibilityRule}`}
+            >
+              <span>👁️</span>
+            </span>
+          )}
         </div>
 
         {/* Action icons */}
         <div className="flex items-center gap-1">
+          {onExtractChildBlock && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onExtractChildBlock(block.id); }}
+              className="p-1 text-gray-400 hover:text-indigo-600 cursor-pointer"
+              title="Extraire ce bloc du conteneur"
+            >
+              <CornerUpLeft className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             disabled={isFirst}
             onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
@@ -320,7 +284,28 @@ function CanvasBlockContent({
       </div>
 
       {/* Visual Canvas Representation */}
-      <div className={`p-5 ${getBlockAppearanceClassName(block)}`} style={getBlockAppearanceStyle(block)} data-block-type={block.type}>
+      <div 
+        className={isContainer ? '' : `p-5 ${getBlockAppearanceClassName(block)}`} 
+        style={isContainer ? {
+          padding: block.innerPadding !== undefined && block.innerPadding !== null ? `${block.innerPadding}px` : '20px',
+          color: block.textColor || undefined,
+        } : getBlockAppearanceStyle(block)} 
+        data-block-type={block.type}
+      >
+        {/* BUTTON BLOCK */}
+        {block.type === 'button' && (
+          <div className={`flex ${getButtonAlignClass(block)}`}>
+            <div className="inline-block relative">
+              <ActionButton block={previewBlock} isPreview={true} />
+              {block.position && block.position.startsWith('float') && (
+                <span className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shadow-2xs">
+                  📍 {getFloatingPositionName(block.position)}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* HEADER BLOCK */}
         {block.type === 'header' && (
           <div className="space-y-2">
@@ -328,9 +313,9 @@ function CanvasBlockContent({
               <div className="flex items-center gap-2.5">
                 <AttachedButtonSet block={block} placement="left" />
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">{block.title || 'Titre'}</h2>
-                  {block.subtitle && (
-                    <p className="text-gray-500 text-xs mt-1">{block.subtitle}</p>
+                  <h2 className="text-xl font-bold text-gray-900 whitespace-pre-line">{previewBlock.title || 'Titre'}</h2>
+                  {previewBlock.subtitle && (
+                    <p className="text-gray-500 text-xs mt-1 whitespace-pre-line leading-relaxed">{previewBlock.subtitle}</p>
                   )}
                 </div>
               </div>
@@ -344,7 +329,7 @@ function CanvasBlockContent({
         {block.type === 'stats' && (
           <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-between">
             <div>
-              <p className="text-xs text-gray-500">{block.statLabel || block.title || 'Métrique'}</p>
+              <p className="text-xs text-gray-500">{previewBlock.statLabel || previewBlock.title || 'Métrique'}</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 {connectedTable ? connectedTable.rowCount : 0}
               </p>
@@ -364,7 +349,7 @@ function CanvasBlockContent({
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-900">{block.title || 'Tableau'}</span>
+                  <span className="font-semibold text-gray-900">{previewBlock.title || 'Tableau'}</span>
                   <AttachedButtonSet block={block} placement="left" />
                 </div>
                 
@@ -429,7 +414,7 @@ function CanvasBlockContent({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-900 text-xs">{block.title || 'Formulaire'}</span>
+                <span className="font-semibold text-gray-900 text-xs">{previewBlock.title || 'Formulaire'}</span>
                 <AttachedButtonSet block={block} placement="left" />
               </div>
               <AttachedButtonSet block={block} placement="right" />
@@ -458,7 +443,7 @@ function CanvasBlockContent({
               </div>
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 bg-gray-900 text-white rounded text-xs font-medium">
-                  {block.buttonText || 'Enregistrer'}
+                  {previewBlock.buttonText || 'Enregistrer'}
                 </span>
               </div>
             </div>
@@ -469,10 +454,79 @@ function CanvasBlockContent({
         {block.type === 'alert' && (
           <div className="p-3.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-800 text-xs flex items-center justify-between gap-3">
             <div>
-              {block.title && <p className="font-semibold">{block.title}</p>}
-              <p className="mt-0.5 text-gray-600">{block.message || 'Information'}</p>
+              {previewBlock.title && <p className="font-semibold whitespace-pre-line">{previewBlock.title}</p>}
+              <p className="mt-0.5 text-gray-600 whitespace-pre-line leading-relaxed">{previewBlock.message || 'Information'}</p>
             </div>
             <AttachedButtonSet block={block} />
+          </div>
+        )}
+
+        {/* CONTAINER / ENCADRÉ BLOCK */}
+        {block.type === 'container' && (
+          <div className="space-y-3">
+            {(!block.blocks || block.blocks.length === 0) ? (
+              <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/40 text-center">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto mb-2 text-base">
+                  📦
+                </div>
+                <p className="text-xs font-semibold text-slate-700">Conteneur vide</p>
+                <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Glissez un bloc ici ou choisissez un bloc à insérer dans cet encadré :</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className={`flex ${block.direction === 'horizontal' ? 'flex-row flex-wrap items-stretch' : 'flex-col'} ${
+                  block.gap === 'none' ? 'gap-0' :
+                  block.gap === 'sm' ? 'gap-2' :
+                  block.gap === 'lg' ? 'gap-6' :
+                  block.gap === 'xl' ? 'gap-8' : 'gap-3.5'
+                }`}>
+                  {block.blocks.map((childBlock, childIndex) => (
+                    <div
+                      key={childBlock.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onSelectChildBlock) {
+                          onSelectChildBlock(childBlock.id);
+                        } else if (onSelect) {
+                          onSelect();
+                        }
+                      }}
+                      className={block.direction === 'horizontal' ? 'flex-1 min-w-[260px]' : 'w-full'}
+                    >
+                      <CanvasBlock
+                        block={childBlock}
+                        tables={tables}
+                        pages={pages}
+                        isSelected={selectedBlockId === childBlock.id}
+                        onSelect={(e) => {
+                          e?.stopPropagation?.();
+                          if (onSelectChildBlock) {
+                            onSelectChildBlock(childBlock.id);
+                          } else if (onSelect) {
+                            onSelect();
+                          }
+                        }}
+                        onMoveUp={() => onMoveChildBlock && onMoveChildBlock(childBlock.id, 'up')}
+                        onMoveDown={() => onMoveChildBlock && onMoveChildBlock(childBlock.id, 'down')}
+                        onDelete={() => onDeleteChildBlock ? onDeleteChildBlock(childBlock.id) : onDelete(childBlock.id)}
+                        isFirst={childIndex === 0}
+                        isLast={childIndex === block.blocks.length - 1}
+                        index={childIndex}
+                        onAddChildBlock={onAddChildBlock}
+                        onSelectChildBlock={onSelectChildBlock}
+                        onMoveChildBlock={onMoveChildBlock}
+                        onDeleteChildBlock={onDeleteChildBlock}
+                        onExtractChildBlock={onExtractChildBlock}
+                        selectedBlockId={selectedBlockId}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                
+              </div>
+            )}
+            <AttachedButtonSet block={block} placement="footer" />
           </div>
         )}
       </div>

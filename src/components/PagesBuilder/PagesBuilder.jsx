@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../api';
 import { getAttachedButtons } from '../../utils/attachedButtons';
+import { 
+  findBlockById, updateBlockById, deleteBlockById, 
+  findParentContainer, addChildToContainer, 
+  moveBlockInLayout, extractBlockFromContainer 
+} from '../../utils/containerBlocks';
 import CreatePageModal from './CreatePageModal';
 import CanvasBlock from './CanvasBlock';
 import BlockSettings from './BlockSettings';
@@ -197,6 +202,17 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
       newBlock.title = 'Note';
       newBlock.message = 'Information pour les utilisateurs.';
       newBlock.alertType = 'info';
+    } else if (type === 'container') {
+      newBlock.title = 'Conteneur';
+      newBlock.blocks = [];
+      newBlock.borderEnabled = true;
+      newBlock.borderWidth = 1;
+      newBlock.borderColor = '#cbd5e1';
+      newBlock.borderRadius = 16;
+      newBlock.backgroundColor = '#ffffff';
+      newBlock.innerPadding = 20;
+      newBlock.direction = 'vertical';
+      newBlock.gap = 'md';
     }
 
     return newBlock;
@@ -404,7 +420,7 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
     e.stopPropagation();
 
     const plainData = e.dataTransfer.getData('text/plain');
-    const transferPaletteType = e.dataTransfer.getData('application/x-free-low-code-palette') || (['button', 'header', 'table', 'form', 'stats', 'alert'].includes(plainData) ? plainData : '') || draggedPaletteType;
+    const transferPaletteType = e.dataTransfer.getData('application/x-free-low-code-palette') || (['button', 'header', 'table', 'form', 'stats', 'alert', 'container'].includes(plainData) ? plainData : '') || draggedPaletteType;
     const transferCanvasIndex = e.dataTransfer.getData('application/x-free-low-code-canvas-index') || e.dataTransfer.getData('canvasIndex');
     const canvasIndex = transferCanvasIndex !== '' ? Number(transferCanvasIndex) : draggedCanvasIndex;
 
@@ -420,7 +436,7 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
     setDragOverBlockId(null);
   };
 
-  // Dropping directly ON a block (to attach button or place on it)
+  // Dropping directly ON a block (to attach button or place inside container)
   const handleDragOverBlock = (e, blockId) => {
     e.preventDefault();
     e.stopPropagation();
@@ -436,9 +452,40 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
     e.stopPropagation();
 
     const plainData = e.dataTransfer.getData('text/plain');
-    const transferPaletteType = e.dataTransfer.getData('application/x-free-low-code-palette') || (['button', 'header', 'table', 'form', 'stats', 'alert'].includes(plainData) ? plainData : '') || draggedPaletteType;
+    const transferPaletteType = e.dataTransfer.getData('application/x-free-low-code-palette') || (['button', 'header', 'table', 'form', 'stats', 'alert', 'container'].includes(plainData) ? plainData : '') || draggedPaletteType;
     const transferCanvasIndex = e.dataTransfer.getData('application/x-free-low-code-canvas-index') || e.dataTransfer.getData('canvasIndex');
     const canvasIndex = transferCanvasIndex !== '' ? Number(transferCanvasIndex) : draggedCanvasIndex;
+
+    const targetBlock = findBlockById(layout, blockId);
+
+    // If target is a container, place inside it!
+    if (targetBlock && targetBlock.type === 'container') {
+      if (transferPaletteType && transferPaletteType !== 'container') {
+        const newChild = createBlock(transferPaletteType);
+        setLayout(addChildToContainer(layout, blockId, newChild));
+        setSelectedBlockId(newChild.id);
+        showToast(`Bloc ${transferPaletteType} ajouté dans le conteneur !`);
+        setDraggedPaletteType(null);
+        setDraggedCanvasIndex(null);
+        setDragOverBlockId(null);
+        setActiveDropIndex(null);
+        return;
+      }
+      if (canvasIndex !== null && Number.isInteger(canvasIndex)) {
+        const draggedBlock = layout[canvasIndex];
+        if (draggedBlock && draggedBlock.id !== blockId) {
+          const layoutWithoutDragged = layout.filter((_, i) => i !== canvasIndex);
+          setLayout(addChildToContainer(layoutWithoutDragged, blockId, draggedBlock));
+          setSelectedBlockId(draggedBlock.id);
+          showToast('Bloc placé dans le conteneur !');
+          setDraggedPaletteType(null);
+          setDraggedCanvasIndex(null);
+          setDragOverBlockId(null);
+          setActiveDropIndex(null);
+          return;
+        }
+      }
+    }
 
     if (transferPaletteType === 'button') {
       attachButtonToBlock(blockId);
@@ -494,34 +541,22 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
     setActiveDropIndex(null);
   };
 
-  const handleMoveUp = (index) => {
-    if (index === 0) {
-      showToast('Ce composant est déjà tout en haut');
-      return;
-    }
-    const newLayout = [...layout];
-    const temp = newLayout[index - 1];
-    newLayout[index - 1] = newLayout[index];
-    newLayout[index] = temp;
-    setLayout(newLayout);
+  const handleMoveUp = (blockIdOrIndex) => {
+    const id = typeof blockIdOrIndex === 'string' ? blockIdOrIndex : layout[blockIdOrIndex]?.id;
+    if (!id) return;
+    setLayout(moveBlockInLayout(layout, id, 'up'));
     showToast('Composant monté ↑');
   };
 
-  const handleMoveDown = (index) => {
-    if (index === layout.length - 1) {
-      showToast('Ce composant est déjà tout en bas');
-      return;
-    }
-    const newLayout = [...layout];
-    const temp = newLayout[index + 1];
-    newLayout[index + 1] = newLayout[index];
-    newLayout[index] = temp;
-    setLayout(newLayout);
+  const handleMoveDown = (blockIdOrIndex) => {
+    const id = typeof blockIdOrIndex === 'string' ? blockIdOrIndex : layout[blockIdOrIndex]?.id;
+    if (!id) return;
+    setLayout(moveBlockInLayout(layout, id, 'down'));
     showToast('Composant descendu ↓');
   };
 
   const handleDeleteBlock = (blockId) => {
-    const newLayout = layout.filter(b => b.id !== blockId);
+    const newLayout = deleteBlockById(layout, blockId);
     setLayout(newLayout);
     if (selectedBlockId === blockId) {
       setSelectedBlockId(newLayout.length > 0 ? newLayout[0].id : null);
@@ -529,10 +564,10 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
   };
 
   const handleUpdateBlock = (updatedBlock) => {
-    setLayout(layout.map(b => b.id === updatedBlock.id ? updatedBlock : b));
+    setLayout(updateBlockById(layout, updatedBlock));
   };
 
-  const selectedBlock = layout.find(b => b.id === selectedBlockId);
+  const selectedBlock = findBlockById(layout, selectedBlockId);
   const isDraggingAny = draggedPaletteType !== null || draggedCanvasIndex !== null;
 
   return (
@@ -701,21 +736,7 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                 <span>Formulaire</span>
               </div>
 
-              {/* 5. MÉTRIQUE */}
-              <div
-                draggable
-                onDragStart={(e) => handlePaletteDragStart(e, 'stats')}
-                onDragEnd={handlePaletteDragEnd}
-                onClick={() => handleAddBlock('stats')}
-                className="px-3 py-1.5 bg-white hover:bg-purple-50/60 text-slate-700 hover:text-purple-900 border border-slate-200 hover:border-purple-300 rounded-xl font-medium flex items-center gap-2 cursor-grab active:cursor-grabbing shadow-2xs select-none transition-all hover:scale-102 shrink-0"
-                title="Compteur statistique (ex: nombre total d'enregistrements)"
-              >
-                <GripVertical className="w-3 h-3 text-slate-300" />
-                <span className="w-5 h-5 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center text-xs">📈</span>
-                <span>Compteur</span>
-              </div>
-
-              {/* 6. NOTE */}
+              {/* 5. NOTE */}
               <div
                 draggable
                 onDragStart={(e) => handlePaletteDragStart(e, 'alert')}
@@ -727,6 +748,20 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                 <GripVertical className="w-3 h-3 text-slate-300" />
                 <span className="w-5 h-5 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center text-xs">💡</span>
                 <span>Note</span>
+              </div>
+
+              {/* 6. CONTENEUR / ENCADRÉ */}
+              <div
+                draggable
+                onDragStart={(e) => handlePaletteDragStart(e, 'container')}
+                onDragEnd={handlePaletteDragEnd}
+                onClick={() => handleAddBlock('container')}
+                className="px-3 py-1.5 bg-white hover:bg-violet-50/60 text-slate-700 hover:text-violet-900 border border-slate-200 hover:border-violet-300 rounded-xl font-medium flex items-center gap-2 cursor-grab active:cursor-grabbing shadow-2xs select-none transition-all hover:scale-102 shrink-0"
+                title="Conteneur vide pour regrouper plusieurs blocs dans une bordure"
+              >
+                <GripVertical className="w-3 h-3 text-slate-300" />
+                <span className="w-5 h-5 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center text-xs">📦</span>
+                <span>Conteneur</span>
               </div>
 
         
@@ -808,7 +843,18 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                             <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs">🔘</span>
                             <span>Bouton</span>
                           </div>
-                         </button>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAddBlock('container')}
+                          className="p-3.5 bg-slate-50 hover:bg-violet-50/50 border border-slate-200 hover:border-violet-300 rounded-xl transition-all group cursor-pointer text-left shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2.5 font-semibold text-xs text-slate-900 group-hover:text-violet-900">
+                            <span className="w-6 h-6 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center text-xs">📦</span>
+                            <span>Conteneur (Encadré)</span>
+                          </div>
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -820,8 +866,8 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                           pages={pages}
                           isSelected={selectedBlockId === block.id}
                           onSelect={() => setSelectedBlockId(block.id)}
-                          onMoveUp={() => handleMoveUp(index)}
-                          onMoveDown={() => handleMoveDown(index)}
+                          onMoveUp={() => handleMoveUp(block.id)}
+                          onMoveDown={() => handleMoveDown(block.id)}
                           onDelete={handleDeleteBlock}
                           isFirst={index === 0}
                           isLast={index === layout.length - 1}
@@ -833,6 +879,21 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                           isDragOverBlock={dragOverBlockId === block.id}
                           onDragOverBlock={(e) => handleDragOverBlock(e, block.id)}
                           onDropOnBlock={(e) => handleDropOnBlock(e, block.id)}
+                          // Container callbacks
+                          onAddChildBlock={(containerId, childType) => {
+                            const child = createBlock(childType);
+                            setLayout(addChildToContainer(layout, containerId, child));
+                            setSelectedBlockId(child.id);
+                            showToast('Bloc ajouté dans le conteneur !');
+                          }}
+                          onSelectChildBlock={(id) => setSelectedBlockId(id)}
+                          onMoveChildBlock={(id, dir) => setLayout(moveBlockInLayout(layout, id, dir))}
+                          onDeleteChildBlock={(id) => handleDeleteBlock(id)}
+                          onExtractChildBlock={(id) => {
+                            setLayout(extractBlockFromContainer(layout, id));
+                            showToast('Bloc extrait du conteneur !');
+                          }}
+                          selectedBlockId={selectedBlockId}
                         />
 
                         {/* Drop zone between/after blocks */}
@@ -858,11 +919,22 @@ export default function PagesBuilder({ onOpenViewPage, initialPageSlug }) {
                 layout={layout}
                 onChange={handleUpdateBlock}
                 onDelete={handleDeleteBlock}
-                onMoveUp={() => selectedBlock && handleMoveUp(layout.findIndex(b => b.id === selectedBlock.id))}
-                onMoveDown={() => selectedBlock && handleMoveDown(layout.findIndex(b => b.id === selectedBlock.id))}
+                onMoveUp={() => selectedBlock && handleMoveUp(selectedBlock.id)}
+                onMoveDown={() => selectedBlock && handleMoveDown(selectedBlock.id)}
                 onAttachButton={() => selectedBlock && attachButtonToBlock(selectedBlock.id)}
                 onDetachToStandalone={handleDetachAttachedButtonToStandalone}
                 onAttachStandaloneToBlock={handleAttachStandaloneToBlock}
+                onAddChildBlock={(containerId, childType) => {
+                  const child = createBlock(childType);
+                  setLayout(addChildToContainer(layout, containerId, child));
+                  setSelectedBlockId(child.id);
+                  showToast('Bloc ajouté dans le conteneur !');
+                }}
+                onSelectBlock={(id) => setSelectedBlockId(id)}
+                onExtractChildBlock={(id) => {
+                  setLayout(extractBlockFromContainer(layout, id));
+                  showToast('Bloc extrait du conteneur !');
+                }}
               />
             </div>
           </>
